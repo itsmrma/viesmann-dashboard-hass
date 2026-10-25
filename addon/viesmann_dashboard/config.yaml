@@ -1,6 +1,6 @@
 name: "Viessmann Heating Dashboard"
 slug: "viesmann_heating_dashboard"
-version: "0.1.3"
+version: "0.1.4"
 description: "Read-only overview for ViCare and a Viessmann 2701 controller"
 url: "https://github.com/itsmrma/viesmann-dashboard-hass"
 image: "ghcr.io/itsmrma/viesmann-dashboard-hass"
