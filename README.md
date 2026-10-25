@@ -24,6 +24,10 @@ No Home Assistant integration or dashboard implementation is available yet.
 
 Project-specific agent skill and issue-tracker configuration is in [`AGENTS.md`](AGENTS.md) and [`docs/agents/`](docs/agents/). The installed Matt Pocock skills are recorded in [`skills-lock.json`](skills-lock.json).
 
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+
 ## Safety boundary
 
 Any future write-capable control is outside the current scope and requires a separate explicit scope decision. The viability prototype must remain observational.
