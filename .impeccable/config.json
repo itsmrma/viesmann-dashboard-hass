@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "createdAt": "2026-10-25T18:33:06.497Z",
+        "reason": "User confirmed Inter as the dashboard font in an earlier request"
+      }
+    ]
+  }
+}
