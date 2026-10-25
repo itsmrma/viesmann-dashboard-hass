@@ -20,9 +20,7 @@ options:
   controller_url: ""
   session_cookie: ""
   poll_minutes: 2
-  vicare_entities: ""
 schema:
   controller_url: str
   session_cookie: password
   poll_minutes: int(1,60)
-  vicare_entities: str?

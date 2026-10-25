@@ -8,6 +8,3 @@ configuration:
   poll_minutes:
     name: Poll interval
     description: Whole minutes between 2701 and ViCare refreshes (1–60).
-  vicare_entities:
-    name: ViCare entity IDs
-    description: Comma-separated entity IDs from Home Assistant's official ViCare integration.
