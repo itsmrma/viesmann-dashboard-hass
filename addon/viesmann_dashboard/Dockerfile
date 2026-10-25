@@ -13,4 +13,7 @@ LABEL io.hass.version="${BUILD_VERSION}" \
 WORKDIR /app
 COPY viesmann_dashboard /app/viesmann_dashboard
 
-CMD ["python3", "-m", "viesmann_dashboard"]
+COPY run.sh /run.sh
+RUN chmod a+x /run.sh
+
+CMD ["/run.sh"]
