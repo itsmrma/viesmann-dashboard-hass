@@ -60,6 +60,20 @@ def fetch_vicare_entities(
             and entry.get("entity_id", "").split(".", 1)[0]
             in {"sensor", "binary_sensor", "climate", "water_heater"}
         }
+        area_by_id = {}
+        connection.send(json.dumps({"id": 2, "type": "config/area_registry/list"}))
+        areas_result = json.loads(connection.recv())
+        if areas_result.get("type") == "result" and areas_result.get("success"):
+            area_by_id = {
+                area["area_id"]: area.get("name")
+                for area in areas_result.get("result", [])
+                if area.get("area_id") and area.get("name")
+            }
+        entity_area = {
+            entry["entity_id"]: area_by_id.get(entry.get("area_id"))
+            for entry in registry_result.get("result", [])
+            if entry.get("entity_id") in entity_ids
+        }
     finally:
         connection.close()
 
@@ -90,6 +104,7 @@ def fetch_vicare_entities(
                 )
                 if entity.get("attributes", {}).get(key) is not None
             },
+            "area": entity_area.get(entity["entity_id"]),
         }
         for entity in states
         if entity.get("entity_id") in entity_ids

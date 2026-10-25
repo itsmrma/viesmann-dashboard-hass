@@ -70,6 +70,11 @@ class DashboardApiTests(unittest.TestCase):
 
         self.assertIn('<base href="/api/hassio_ingress/test-addon/">', html)
         self.assertIn("fetch('api/status'", html)
+        self.assertIn("room/${encodeURIComponent(room.key)}", html)
+        self.assertIn("← Panoramica", html)
+        self.assertIn("#room/${encodeURIComponent(room.key)}", html)
+        self.assertIn("Automatico", html)
+        self.assertIn("prefers-color-scheme: dark", html)
         self.assertNotIn("<button", html)
         self.assertNotIn("<form", html)
 
