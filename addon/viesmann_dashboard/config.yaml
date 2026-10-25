@@ -1,6 +1,6 @@
 name: "Viessmann Heating Dashboard"
 slug: "viesmann_heating_dashboard"
-version: "0.1.0"
+version: "0.1.1"
 description: "Read-only overview for ViCare and a Viessmann 2701 controller"
 url: "https://github.com/itsmrma/viesmann-dashboard-hass"
 image: "ghcr.io/itsmrma/viesmann-dashboard-hass"
@@ -20,9 +20,7 @@ options:
   controller_url: ""
   session_cookie: ""
   poll_minutes: 2
-  vicare_entities: ""
 schema:
   controller_url: str
   session_cookie: password
   poll_minutes: int(1,60)
-  vicare_entities: str?
