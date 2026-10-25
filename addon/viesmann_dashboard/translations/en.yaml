@@ -1,0 +1,13 @@
+configuration:
+  controller_url:
+    name: Controller URL
+    description: Base URL of the Viessmann 2701 PHP/XML interface.
+  session_cookie:
+    name: PHP session cookie
+    description: PHPSESSID value only. Do not include the Cookie header name.
+  poll_minutes:
+    name: Poll interval
+    description: Whole minutes between 2701 and ViCare refreshes (1–60).
+  vicare_entities:
+    name: ViCare entity IDs
+    description: Comma-separated entity IDs from Home Assistant's official ViCare integration.

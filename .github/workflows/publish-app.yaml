@@ -1,0 +1,106 @@
+name: Publish Home Assistant app
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    paths:
+      - "addon/viesmann_dashboard/**"
+      - "tests/**"
+      - ".github/workflows/publish-app.yaml"
+
+permissions:
+  contents: read
+
+env:
+  ARCHITECTURES: '["amd64", "aarch64"]'
+  IMAGE_NAME: viesmann-dashboard-hass
+  REGISTRY_PREFIX: ghcr.io/itsmrma
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Run TDD suite
+        run: python -m unittest discover -s tests -p 'test_*.py'
+      - name: Validate app metadata
+        run: |
+          ruby -e 'require "yaml"; ARGV.each { |path| YAML.load_file(path); puts "valid YAML: #{path}" }' \
+            addon/viesmann_dashboard/config.yaml \
+            addon/viesmann_dashboard/translations/en.yaml \
+            repository.yaml
+      - name: Build add-on image
+        run: docker build --tag viesmann-dashboard-hass:ci addon/viesmann_dashboard
+
+  prepare:
+    needs: tests
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Read app version
+        id: version
+        shell: bash
+        run: |
+          version="$(sed -n 's/^version: *"\{0,1\}\([^" ]*\)"\{0,1\}$/\1/p' addon/viesmann_dashboard/config.yaml)"
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Prepare architecture matrix
+        id: matrix
+        uses: home-assistant/builder/actions/prepare-multi-arch-matrix@2026.09.0
+        with:
+          architectures: ${{ env.ARCHITECTURES }}
+          image-name: ${{ env.IMAGE_NAME }}
+          registry-prefix: ${{ env.REGISTRY_PREFIX }}
+
+  build:
+    needs: [tests, prepare]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build and publish architecture image
+        uses: home-assistant/builder/actions/build-image@2026.09.0
+        with:
+          arch: ${{ matrix.arch }}
+          context: addon/viesmann_dashboard
+          container-registry-password: ${{ secrets.GITHUB_TOKEN }}
+          image: ${{ matrix.image }}
+          image-tags: |
+            ${{ needs.prepare.outputs.version }}
+            latest
+          push: "true"
+          skip-existing: ${{ needs.prepare.outputs.version }}
+          version: ${{ needs.prepare.outputs.version }}
+
+  manifest:
+    needs: [tests, prepare, build]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      packages: write
+    steps:
+      - name: Publish multi-architecture manifest
+        uses: home-assistant/builder/actions/publish-multi-arch-manifest@2026.09.0
+        with:
+          architectures: ${{ env.ARCHITECTURES }}
+          container-registry-password: ${{ secrets.GITHUB_TOKEN }}
+          image-name: ${{ env.IMAGE_NAME }}
+          image-tags: |
+            ${{ needs.prepare.outputs.version }}
+            latest
+          registry-prefix: ${{ env.REGISTRY_PREFIX }}
+          skip-existing: ${{ needs.prepare.outputs.version }}
