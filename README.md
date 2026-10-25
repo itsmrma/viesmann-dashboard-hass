@@ -1,28 +1,26 @@
 # Viessmann Home Assistant Dashboard
 
-A read-only Home Assistant project to bring the status of a Viessmann Vitocal heat pump, managed through ViCare, together with readings from a Viessmann 2701 controller.
+A read-only Home Assistant app (add-on) combining ViCare entities exposed by Home Assistant with direct polling of a Viessmann 2701 controller.
 
-The goal is to make the combined heating and cooling status easier to understand and to assess whether a dedicated Home Assistant integration or dashboard is a viable option.
+## Current implementation
+
+The Supervisor app is in [`addon/viesmann_dashboard`](addon/viesmann_dashboard). It provides a browser dashboard through Home Assistant Ingress, polls the 2701 PHP/XML interface, and reads selected ViCare entities through the Supervisor Home Assistant API. The first version is observational only: it does not send device commands or change settings.
+
+For configuration and local test instructions, see [`addon/viesmann_dashboard/DOCS.md`](addon/viesmann_dashboard/DOCS.md).
 
 ## Scope
 
-The initial phase is **read-only**:
+- Read `index_refresh.php` and `zone_refresh.php?ids=<zone-id>` with a user-configured PHP session cookie.
+- Show room temperature, target temperature, humidity when available, season, and zone activity.
+- Read user-selected ViCare entity IDs from Home Assistant's official integration.
+- Mark each source fresh, stale, or unavailable independently; stale begins after two configured polling intervals.
+- Ship the poller and GUI together as a Home Assistant Supervisor app.
 
-- Parse and display available data from ViCare and the existing PHP-based Home Assistant scrapers for the 2701.
-- Make no changes to either device or service.
-- Expose no controls or services that can change operating modes, setpoints, schedules, or other device settings.
-
-The project will first check whether it can reuse Home Assistant's official ViCare integration and the user's existing scraper entities instead of duplicating data collection.
-
-## Project status
-
-Planning is tracked in the [Wayfinder project map](https://github.com/itsmrma/viesmann-dashboard-hass/issues/1). The next step is to identify the relevant 2701 scraper entities and their values, units, and update frequency. Please redact credentials and personal data from any configuration shared for that work.
-
-No Home Assistant integration or dashboard implementation is available yet.
+The initial release supports Supervisor installations only. Write-capable controls and support for Container/Core installations are out of scope.
 
 ## Development planning
 
-Project-specific agent skill and issue-tracker configuration is in [`AGENTS.md`](AGENTS.md) and [`docs/agents/`](docs/agents/). The installed Matt Pocock skills are recorded in [`skills-lock.json`](skills-lock.json).
+Planning decisions are recorded in the [Wayfinder map](https://github.com/itsmrma/viesmann-dashboard-hass/issues/1). Agent and issue-tracker conventions are in [`AGENTS.md`](AGENTS.md) and [`docs/agents/`](docs/agents/); installed Matt Pocock skills are recorded in [`skills-lock.json`](skills-lock.json).
 
 ## License
 
@@ -30,4 +28,4 @@ This project is licensed under the [MIT License](LICENSE).
 
 ## Safety boundary
 
-Any future write-capable control is outside the current scope and requires a separate explicit scope decision. The viability prototype must remain observational.
+Write-capable controls remain outside this implementation and require a separate explicit scope decision.
