@@ -38,7 +38,8 @@ def make_handler(state, enforce_ingress_peer: bool = False) -> Type[BaseHTTPRequ
             if is_ui_path:
                 html = UI_FILE.read_text(encoding="utf-8")
                 base = f'<base href="{html_module.escape(ingress_path, quote=True)}/">' if ingress_path.startswith("/") else ""
-                html = html.replace("<meta name=\"color-scheme\" content=\"light\">", f'<meta name="color-scheme" content="light">{base}')
+                if base:
+                    html = html.replace("</head>", f"{base}</head>", 1)
                 body = html.encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")

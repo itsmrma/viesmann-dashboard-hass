@@ -14,6 +14,12 @@ The controller poller uses GET requests to `index_refresh.php` and `zone_refresh
 
 Restart the app after changing its options. Bump `version` in `config.yaml` before publishing a new image version; the workflow skips version tags already present. The app automatically discovers enabled ViCare sensor, binary sensor, climate, and water heater entities from Home Assistant. It reads entity metadata through the WebSocket registry command and states through the REST API. Both requests are read-only; it does not call services or issue commands.
 
+## Dashboard views and theme
+
+The overview and room navigation are generated from the live 2701 zones and Home Assistant areas used by discovered ViCare entities. Select a room card on the overview to open its dedicated detail view; use **Panoramica** to return. ViCare entities appear in a room view when their Home Assistant area name matches a 2701 zone name; entities without an assigned area remain available under **Impianto**. Adding or renaming zones and areas does not require dashboard configuration.
+
+The theme selector offers automatic, light, and dark modes. Automatic mode follows the Home Assistant page theme when its background color is readable from Ingress; otherwise it follows the operating system color preference. The selection is remembered in the browser.
+
 ## Freshness and errors
 
 Each source reports its own last update. 2701 freshness uses the last successful controller poll. ViCare freshness uses the oldest discovered entity `last_updated` value, so a stale reading is not hidden by another entity that updated more recently. A source becomes stale after two configured polling intervals. The last readings remain visible after a failure; before the first successful read, that source is unavailable.

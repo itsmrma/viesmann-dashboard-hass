@@ -17,13 +17,14 @@ class FakeWebSocket:
                 "type": "result",
                 "success": True,
                 "result": [
-                    {"entity_id": "sensor.vicare_flow", "platform": "vicare", "disabled_by": None},
-                    {"entity_id": "climate.vicare_heating", "platform": "vicare", "disabled_by": None},
+                    {"entity_id": "sensor.vicare_flow", "platform": "vicare", "disabled_by": None, "area_id": "living"},
+                    {"entity_id": "climate.vicare_heating", "platform": "vicare", "disabled_by": None, "area_id": "living"},
                     {"entity_id": "button.vicare_charge", "platform": "vicare", "disabled_by": None},
                     {"entity_id": "sensor.other_flow", "platform": "other", "disabled_by": None},
                     {"entity_id": "sensor.vicare_disabled", "platform": "vicare", "disabled_by": "user"},
                 ],
             },
+            {"id": 2, "type": "result", "success": True, "result": [{"area_id": "living", "name": "Soggiorno"}]},
         ]
 
     def recv(self):
@@ -77,11 +78,15 @@ class VicareClientTests(unittest.TestCase):
         )
 
         self.assertEqual(connection_args, [("ws://127.0.0.1:8123/api/websocket", 10)])
-        self.assertEqual([message["type"] for message in websocket.sent], ["auth", "config/entity_registry/list"])
+        self.assertEqual(
+            [message["type"] for message in websocket.sent],
+            ["auth", "config/entity_registry/list", "config/area_registry/list"],
+        )
         self.assertEqual(websocket.sent[0]["access_token"], "local-test-token")
         self.assertEqual(seen, [("GET", "/api/states", "Bearer local-test-token")])
         self.assertEqual([entity["entity_id"] for entity in result], ["sensor.vicare_flow", "climate.vicare_heating"])
         self.assertEqual(result[0]["attributes"], {"friendly_name": "Flow", "unit_of_measurement": "°C"})
+        self.assertEqual(result[0]["area"], "Soggiorno")
         self.assertEqual(result[1]["attributes"], {"friendly_name": "Heating", "current_temperature": 20.5})
 
 
