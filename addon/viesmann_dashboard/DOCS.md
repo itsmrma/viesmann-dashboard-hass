@@ -1,4 +1,4 @@
-# Viessmann Heating Dashboard
+# Viessmann Dashboard
 
 This Home Assistant Supervisor app automatically discovers and displays ViCare entity states alongside readings from a Viessmann 2701 controller. Open it from the Home Assistant sidebar after installing and starting the app.
 
@@ -56,7 +56,7 @@ The app uses a prebuilt multi-architecture GHCR image, published by GitHub Actio
 
 For every app change, increase `version` in `config.yaml` and add a matching newest `## x.y.z` section with user-visible changes to `CHANGELOG.md` in this app folder. The workflow skips image tags already published, so every release needs a fresh version. CI checks that app changes advance the version and update the changelog, and that the latest notes match the configured version. To run the comparison locally after committing, set `RELEASE_BASE_REF=origin/main` when running the Python suite.
 
-Home Assistant Supervisor reads `CHANGELOG.md`, `icon.png` (128×128), and `logo.png` (256×256) directly from this folder. The sidebar uses `panel_icon: mdi:thermometer`. See the official [app presentation](https://developers.home-assistant.io/docs/apps/presentation/) and [configuration](https://contributors.home-assistant.io/apps/reference/configuration/) documentation. After merging and publishing the image, refresh the app store repositories and install the update in Home Assistant to see the new version and branding.
+Home Assistant Supervisor reads `CHANGELOG.md`, `icon.png` (128×128), and `logo.png` (256×256) directly from this folder. The app and its sidebar entry are named **Viessmann Dashboard**; the sidebar uses `panel_icon: mdi:thermometer`. See the official [app presentation](https://developers.home-assistant.io/docs/apps/presentation/) and [configuration](https://contributors.home-assistant.io/apps/reference/configuration/) documentation. After merging and publishing the image, refresh the app store repositories and install the update in Home Assistant to see the new version and branding.
 
 
 ## Final release validation
@@ -66,3 +66,5 @@ Once a built app is available on the target Home Assistant system, perform one c
 Include the issue #22 scenarios in that same pass: confirm the requested room order and final direct-circuit card; equal temperature/humidity panels; absence of a season preview; winter/summer humidity availability; readable Impianto values matching the enabled ViCare sensors, including area-assigned or renamed entities; portrait/landscape layout, zoom, and native slider drag versus vertical page scrolling in Safari/iOS. Browser emulation and synthesized Chromium touch do not replace this physical-device check.
 
 Include the issue #24 scenarios in that same pass: confirm the 0.1.6 release notes and thermometer app/sidebar icons in Home Assistant; direct room links and the back link under Ingress; stable overview/system/settings headings; all three custom colors, visual sliders, HEX entry, Apply/Cancel/Escape and theme-specific persistence; the iOS keyboard and short viewport; brief button feedback and reduced-motion behavior. These Supervisor and physical-device checks remain pending until the release is installed.
+
+For 0.1.7, also confirm **Viessmann Dashboard** appears in both the app list and sidebar, with the thermometer sidebar icon.

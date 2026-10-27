@@ -5,6 +5,7 @@
 - Create pull requests ready for review. Use draft only when explicitly requested.
 - After pushing, provide the PR link and known verification results. Do not wait for CI; fix known failures before handing off.
 - Consolidate manual PC/Mac/iOS checks into one final release validation. Run appropriate automated checks during implementation and record remaining manual scenarios for that final pass.
+- Write all changelog entries in English, including release notes displayed in Home Assistant.
 
 ## Agent skills
 
