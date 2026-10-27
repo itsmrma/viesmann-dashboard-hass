@@ -2,42 +2,43 @@
 
 ## 0.1.7
 
-- Rinominata l'app e la voce della barra laterale di Home Assistant in «Viessmann Dashboard».
-- La voce laterale usa l'icona a termometro configurata dalla versione 0.1.6.
+- Renamed the app and its Home Assistant sidebar entry to "Viessmann Dashboard".
+- The sidebar entry uses the thermometer icon configured since version 0.1.6.
+- Translated all release notes into English and documented English as the required language for future changelog entries.
 
 ## 0.1.6
 
-- Aggiunta un'icona a termometro per l'app installata e per la barra laterale di Home Assistant.
-- Aggiunto il pulsante «Torna alla panoramica» nelle viste delle stanze.
-- Sostituito il selettore colori di sistema con un dialog interno: tonalità, saturazione, luminosità e codice HEX, con Applica e Annulla.
-- Centrati i pallini dei cursori sulle rispettive barre dei colori.
-- Allineata l'intestazione Impianto alle altre pagine con l'etichetta «Dettaglio».
-- Aggiunti feedback rapidi ai pulsanti, alle preferenze e alle anteprime dei valori, rispettando il movimento ridotto.
-- Reso disponibile questo changelog in Home Assistant e aggiunti controlli automatici per richiedere versione e note aggiornate nelle release future.
+- Added a thermometer icon for the installed app and the Home Assistant sidebar.
+- Added a "Back to overview" button to room views.
+- Replaced the system color picker with an in-page dialog offering hue, saturation, lightness, and HEX input, with Apply and Cancel actions.
+- Centered the slider thumbs on their color tracks.
+- Aligned the System heading with the other pages by adding the "Details" label.
+- Added brief feedback to buttons, preferences, and value previews while respecting reduced-motion settings.
+- Made this changelog available in Home Assistant and added automated checks requiring updated versions and release notes for future releases.
 
 ## 0.1.5
 
-- Riordinate le stanze, mantenendo Circuito diretto in fondo.
-- Uniformati dimensioni, valori e cursori delle anteprime temperatura e umidità.
-- Mostrati consumi e temperature selezionati della pompa di calore nella vista Impianto.
-- Migliorati layout su schermi piccoli e disponibilità stagionale dell'anteprima umidità.
+- Reordered rooms, keeping Circuito diretto last.
+- Matched the dimensions, value typography, and sliders of the temperature and humidity previews.
+- Added selected heat pump energy consumption and temperature readings to the System view.
+- Improved small-screen layouts and seasonal availability of the humidity preview.
 
 ## 0.1.4
 
-- Aggiornata la versione dell'app per rendere disponibili gli ultimi miglioramenti della dashboard in Home Assistant.
+- Bumped the app version to make the latest dashboard improvements available in Home Assistant.
 
 ## 0.1.3
 
-- Rinnovata la dashboard con viste dedicate alle stanze, temi, lingue e palette personalizzabili.
+- Redesigned the dashboard with dedicated room views, themes, languages, and customizable palettes.
 
 ## 0.1.2
 
-- Corretto l'avvio di Python con l'ambiente Supervisor.
+- Fixed Python startup with the Supervisor environment.
 
 ## 0.1.1
 
-- Aggiunta la scoperta automatica delle entità ViCare esposte da Home Assistant.
+- Added automatic discovery of ViCare entities exposed by Home Assistant.
 
 ## 0.1.0
 
-- Prima versione dell'app con letture ViCare e controller Viessmann 2701 tramite Ingress.
+- Initial app release with ViCare and Viessmann 2701 controller readings through Ingress.
