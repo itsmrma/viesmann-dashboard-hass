@@ -22,10 +22,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Run TDD suite
+        env:
+          RELEASE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: python -m unittest discover -s tests -p 'test_*.py'
       - uses: actions/setup-node@v6
         with:
