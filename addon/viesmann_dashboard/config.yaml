@@ -1,6 +1,6 @@
 name: "Viessmann Heating Dashboard"
 slug: "viesmann_heating_dashboard"
-version: "0.1.5"
+version: "0.1.6"
 description: "Read-only overview for ViCare and a Viessmann 2701 controller"
 url: "https://github.com/itsmrma/viesmann-dashboard-hass"
 image: "ghcr.io/itsmrma/viesmann-dashboard-hass"
@@ -12,7 +12,7 @@ boot: auto
 init: false
 ingress: true
 ingress_port: 8099
-panel_icon: mdi:heat-pump
+panel_icon: mdi:thermometer
 panel_title: Heating overview
 panel_admin: false
 homeassistant_api: true

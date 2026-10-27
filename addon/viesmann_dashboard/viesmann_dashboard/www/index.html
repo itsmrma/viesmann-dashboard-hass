@@ -58,11 +58,31 @@
 </style>
 
 
+  <style>
+    .back-link{display:inline-flex;align-items:center;gap:8px;min-height:44px;margin-bottom:14px;padding:0 10px;border:1px solid var(--line);border-radius:5px;background:var(--paper);color:var(--accent);font-size:.82rem;font-weight:650}
+    .overview-heading{position:relative}.overview-heading>.status-chip{position:absolute;right:0;top:0}
+    @media(min-width:761px){.overview-heading>div:first-child{padding-right:150px}}
+    @media(max-width:480px){.heading>div:first-child>p{min-height:2lh}}
+    .custom-color-input{background:var(--swatch);color:var(--text)}
+    .color-dialog{width:min(440px,calc(100% - 32px));max-height:calc(100dvh - 32px);margin:auto;padding:24px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--text);box-shadow:0 12px 40px #0003;overflow:auto}
+    .color-dialog::backdrop{background:#101a1866}.color-dialog h2{margin:0;font-size:1.25rem}.color-dialog-description{margin:6px 0 20px;color:var(--muted);font-size:.82rem}
+    .color-preview{height:68px;margin-bottom:18px;border:1px solid var(--line);border-radius:5px;background:var(--selected-color)}
+    .color-channel{display:grid;gap:6px;margin:14px 0;font-size:.8rem;font-weight:600}.color-channel input{width:100%;height:28px;margin:0;accent-color:var(--accent);cursor:pointer}
+    .color-channel input::-webkit-slider-runnable-track{height:8px;border-radius:8px;background:var(--channel-track)}.color-channel input::-moz-range-track{height:8px;border-radius:8px;background:var(--channel-track)}
+    .color-hex{display:grid;gap:6px;margin-top:18px;font-size:.8rem;font-weight:600}.color-hex input{width:100%;min-height:44px;padding:8px 12px;border:1px solid var(--line);border-radius:5px;background:var(--bg);color:var(--text);font:inherit;caret-color:var(--accent)}
+    .color-hex input[aria-invalid="true"]{border-color:var(--danger)}.color-error{min-height:1.5em;margin:5px 0 16px;color:var(--danger);font-size:.76rem}
+    .color-dialog-actions{display:flex;justify-content:flex-end;gap:8px}.color-dialog-actions button{min-height:44px;padding:8px 16px;border:1px solid var(--line);border-radius:5px;background:var(--bg);color:var(--text);cursor:pointer}.color-dialog-actions .color-apply{background:var(--text);color:var(--paper);border-color:var(--text)}
+    :where(button,a,input):focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+    :where(button,.tab,.room-card,.back-link){transition:transform 120ms cubic-bezier(.16,1,.3,1),background-color 140ms,border-color 140ms,color 140ms}
+    :where(button:not(:disabled),.room-card,.back-link):active{transform:scale(.98)}.tab:active{background:var(--accent-soft)}
+    @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+  </style>
 </head>
 <body><main>
   <header class="topbar"><div class="brand"><span class="brand-mark material-symbols-rounded" aria-hidden="true">home</span><div><strong data-i18n="brand.title">Clima di casa</strong><small data-i18n="brand.subtitle">Panoramica impianto · sola lettura</small></div></div></header>
   <div id="app"><p class="empty" data-i18n="rooms.loading">Caricamento delle stanze…</p></div>
 </main>
+<dialog id="color-dialog" class="color-dialog" aria-labelledby="color-dialog-title" aria-describedby="color-dialog-description"></dialog>
 <script>
   const $=id=>document.getElementById(id), el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!=null)n.textContent=text;return n;};
   const icon=name=>el('span','material-symbols-rounded',name);
@@ -88,7 +108,14 @@
   const previewTargets=new Map(),previewHumidities=new Map();
   function systemTheme(){try{const css=getComputedStyle(parent.document.documentElement),value=css.getPropertyValue('--primary-background-color').trim()||css.getPropertyValue('--ha-card-background').trim();const m=value.match(/rgba?\((\d+)[, ]+\s*(\d+)[, ]+\s*(\d+)/);if(m){const [r,g,b]=m.slice(1).map(Number);return (r*.2126+g*.7152+b*.0722)<128?'dark':'light';}}catch(_){}return matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}
   function applyPreferences(){const mode=preferences.theme==='auto'?systemTheme():preferences.theme,root=document.documentElement;root.dataset.theme=mode;root.dataset.palette=preferences.palette;if(preferences.palette==='custom')applyCustomPalette(mode);else for(const name of ['--bg','--paper','--paper-2','--text','--muted','--line','--accent','--accent-soft','--green','--green-soft','--season-bg','--season-fg','--season-muted','--season-ring','--setpoint-bg','--setpoint-fg','--setpoint-muted'])root.style.removeProperty(name);root.lang=preferences.language;document.title=t('page.title');document.querySelectorAll('[data-i18n]').forEach(node=>node.textContent=t(node.dataset.i18n));}
-  function updatePreference(key,value){preferences[key]=value;localStorage.setItem(`heating-dashboard-${key}`,value);applyPreferences();if(latest)render(latest);}
+  function updatePreference(key,value){preferences[key]=value;localStorage.setItem(`heating-dashboard-${key}`,value);applyPreferences();if(latest)render(latest);
+    const selected=document.querySelector(`[data-preference="${key}"][data-choice="${value}"]`);
+    selected?.focus({preventScroll:true});acknowledge(selected);
+  }
+  function acknowledge(node){
+    if(node&&!matchMedia('(prefers-reduced-motion: reduce)').matches)
+      node.animate([{transform:'scale(.97)'},{transform:'scale(1)'}],{duration:140,easing:'cubic-bezier(.16,1,.3,1)'});
+  }
   applyPreferences();matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if(preferences.theme==='auto')applyPreferences();});
   function slug(text){return text.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'room';}
   function rooms(data){const zones=data['2701']?.zones||[],entities=data.vicare||[],map=new Map();for(const zone of zones){const name=zone.name||`${t('room.zone')} ${zone.id??'?'}`,key=slug(name);map.set(key,{key,name,zone,entities:[]});}for(const entity of entities){if(!entity.area)continue;const key=slug(entity.area);if(!map.has(key))map.set(key,{key,name:entity.area,zone:null,entities:[]});map.get(key).entities.push(entity);}const order=['cucina','sala','matrimoniale','cameretta','armadi','bagni'];const rank=room=>room.key==='circuito-diretto'?Number.MAX_SAFE_INTEGER:order.includes(room.key)?order.indexOf(room.key):order.length;return [...map.values()].sort((a,b)=>rank(a)-rank(b)||a.name.localeCompare(b.name,preferences.language==='it'?'it':'en'));}
@@ -99,11 +126,11 @@
   function navigation(current){const nav=el('nav','tabs');nav.setAttribute('aria-label',t('nav.aria'));nav.append(tab(t('nav.overview'),'#',current==='overview','dashboard'),tab(t('nav.system'),'#system',current==='system','tune'),tab(t('nav.settings'),'#settings',current==='settings','settings'));return nav;}
   function format(value,unit='°C'){return value==null?'—':`${value} ${unit}`;}
   function roomCard(room){const a=el('a','room-card');a.href=`#room/${encodeURIComponent(room.key)}`;const top=el('div','room-link'),title=el('div','room-heading');const symbol=room.zone?'thermostat': 'meeting_room';const badge=el('span','room-icon');badge.append(icon(symbol));title.append(badge,el('span','room-title',room.name));top.append(title);const arrow=el('span','arrow');arrow.append(icon('arrow_forward'));top.append(arrow);a.append(top);const stats=el('div','room-stats');for(const [label,value] of [[t('room.ambient'),room.zone?format(room.zone.room_temperature):'—'],[t('room.target'),room.zone?format(room.zone.target_temperature):'—'],[t('room.humidity'),room.zone?format(room.zone.humidity,'%'):'—']]){const item=el('div','room-stat');item.append(el('strong','',value),el('span','',label));stats.append(item);}a.append(stats);const foot=el('div','room-foot'),count=room.entities.length;foot.append(el('span','',count?(count===1?t('room.reading',{count}):t('room.readings',{count})):room.zone?t('room.controller'):t('room.area')));if(room.zone)foot.append(el('span',`badge${room.zone.active?'':' inactive'}`,room.zone.active?t('room.active'):t('room.inactive')));a.append(foot);return a;}
-  function renderOverview(data,list){const root=el('div','');const zones=data['2701']?.zones||[],active=zones.filter(z=>z.active).length,season=data['2701']?.season;const heading=el('div','heading status-heading'),intro=el('div','');intro.append(el('div','eyebrow',t('home.eyebrow')),el('h1','',t('home.title')),el('p','',t('home.description')));heading.append(intro,chip(data.sources['2701']));root.append(heading,navigation('overview'));
+  function renderOverview(data,list){const root=el('div','');const zones=data['2701']?.zones||[],active=zones.filter(z=>z.active).length,season=data['2701']?.season;const heading=el('div','heading status-heading overview-heading'),intro=el('div','');intro.append(el('div','eyebrow',t('home.eyebrow')),el('h1','',t('home.title')),el('p','',t('home.description')));heading.append(intro,chip(data.sources['2701']));root.append(heading,navigation('overview'));
     const activeLabel=!zones.length?t('home.waiting'):active===0?t('home.noneActive'):active===1?t('home.activeOne'):t('home.active',{count:active}),detail=zones.length?(active===1?t('home.detectedOne'):t('home.detected',{count:zones.length})):t('home.noZones');const hero=el('div','hero'),summary=el('section','card'),s=el('div','summary'),summaryIcon=el('span','summary-icon');summaryIcon.append(icon('home_iot_device'));const copy=el('div','');copy.append(el('div','eyebrow',t('home.state')),el('h2','',activeLabel),el('p','',detail));s.append(summaryIcon,copy);summary.append(s);const metrics=el('div','metric-row');for(const [n,label] of [[zones.length,t('metric.zones')],[data.vicare?.length||0,t('metric.vicare')],[list.length,t('metric.rooms')]]){const m=el('div','metric');m.append(el('strong','',String(n)),el('span','',label));metrics.append(m);}summary.append(metrics);hero.append(summary);const seasonal=el('section','card season-card'),seasonIcon=season==='winter'?'ac_unit':season==='summer'?'light_mode':'thermostat',art=icon(seasonIcon);art.classList.add('season-art');art.setAttribute('aria-hidden','true');seasonal.append(art,el('div','eyebrow',t('season.eyebrow')),el('div','season',season==='winter'?t('season.heating'):season==='summer'?t('season.cooling'):t('season.unknown')),el('div','season-note',season?t('season.fromController'):t('season.waiting')));hero.append(seasonal);root.append(hero);
     const sh=el('div','section-head'),shCopy=el('div','');shCopy.append(el('h2','',t('rooms.title')),el('p','',t('rooms.description')));sh.append(shCopy,el('span','section-label',t(list.length===1?'rooms.countOne':'rooms.countMany',{count:list.length})));root.append(sh);const grid=el('div','room-grid');if(list.length)list.forEach(r=>grid.append(roomCard(r)));else grid.append(el('p','empty',t('rooms.empty')));root.append(grid);const sources=el('div','sources');sources.append(sourceCard('Viessmann 2701',data.sources['2701']),sourceCard('ViCare · Home Assistant',data.sources.vicare));root.append(sources);root.append(el('div','footer',t('footer.readOnly')));return root;}
   function targetDisplay(value){const n=Number(value);return Number.isInteger(n)?String(n):n.toFixed(1);}
-  function renderRoom(data,room){const root=el('div',''),heading=el('div','heading status-heading'),left=el('div','');left.append(el('h1','',room.name));const zoneStatus=room.zone?statusChip(room.zone.active?'active':'inactive',room.zone.active?t('room.active'):t('room.inactive'),room.zone.active?'check':'power_off'):statusChip('unavailable',t('room.noZone'),'device_thermostat');heading.append(left,zoneStatus);root.append(heading,navigation('room'));
+  function renderRoom(data,room){const root=el('div',''),heading=el('div','heading status-heading'),left=el('div','');const back=el('a','back-link');back.href='#';back.append(icon('arrow_back'),document.createTextNode(t('nav.back')));root.append(back);left.append(el('h1','',room.name));const zoneStatus=room.zone?statusChip(room.zone.active?'active':'inactive',room.zone.active?t('room.active'):t('room.inactive'),room.zone.active?'check':'power_off'):statusChip('unavailable',t('room.noZone'),'device_thermostat');heading.append(left,zoneStatus);root.append(heading,navigation('room'));
     const roomView=el('div','room-view'),current=el('section','room-panel current-panel'),currentMain=el('div','current-main'),currentLabel=el('div','field-label');currentLabel.append(icon('device_thermostat'),document.createTextNode(t('room.current')));currentMain.append(currentLabel);const value=el('div','current-reading'),temperature=room.zone?.room_temperature;value.append(el('strong','',temperature==null?'—':String(temperature)),el('small','',temperature==null?'':'°C'));currentMain.append(value,el('div','reading-context',room.zone?.active?t('room.comfortActive'):room.zone?t('room.comfortInactive'):t('room.noZoneLinked')));
     const facts=el('div','room-facts');for(const [label,val] of [[t('room.humidity'),room.zone?format(room.zone.humidity,'%'):'—'],[t('room.state'),room.zone?(room.zone.active?t('room.active'):t('room.inactive')):'—'],[t('room.zone'),room.zone?.id??'—']]){const fact=el('div','room-fact');fact.append(el('span','',label),el('strong','',String(val)));facts.append(fact);}current.append(currentMain,facts);roomView.append(current);
     const control=el('section','room-panel setpoint-panel');control.setAttribute('aria-label',t('room.control'));const zoneKey=room.key;
@@ -118,15 +145,127 @@
     const humidityStepper=el('div','setpoint-stepper'),humidityDown=el('button','',''),humidityUp=el('button','','');humidityDown.type=humidityUp.type='button';humidityDown.setAttribute('aria-label',t('room.decreaseHumidity'));humidityUp.setAttribute('aria-label',t('room.increaseHumidity'));humidityDown.append(icon('remove'));humidityUp.append(icon('add'));humidityStepper.append(humidityDown,humidityUp);humidityGroup.append(humidityStepper);
     const humiditySlider=el('input','setpoint-slider');humiditySlider.type='range';humiditySlider.min='30';humiditySlider.max='70';humiditySlider.step='1';humiditySlider.value=String(humidity);humiditySlider.setAttribute('aria-label',t('room.humiditySlider'));humiditySlider.disabled=!room.zone;humidityGroup.append(humiditySlider);const humidityScale=el('div','setpoint-scale');humidityScale.append(el('span','','30 %'),el('span','','70 %'));humidityGroup.append(humidityScale);controls.append(humidityGroup);control.append(controls);
     const caption=el('p','setpoint-caption',room.zone?t('room.localPreview'):t('room.requiresZone'));control.append(caption);
-    function setTarget(next){target=Math.min(30,Math.max(5,Math.round(next*2)/2));previewTargets.set(zoneKey,target);output.value=targetDisplay(target);output.textContent=targetDisplay(target);slider.value=String(target);slider.style.setProperty('--range-progress',`${((target-5)/25)*100}%`);decrease.disabled=!room.zone||target<=5;increase.disabled=!room.zone||target>=30;}decrease.disabled=increase.disabled=!room.zone;decrease.addEventListener('click',()=>setTarget(target-.5));increase.addEventListener('click',()=>setTarget(target+.5));slider.addEventListener('input',()=>setTarget(Number(slider.value)));setTarget(target);
-    function setHumidity(next){humidity=Math.min(70,Math.max(30,Math.round(next)));previewHumidities.set(zoneKey,humidity);humidityOutput.value=String(humidity);humidityOutput.textContent=String(humidity);humiditySlider.value=String(humidity);humiditySlider.style.setProperty('--range-progress',`${((humidity-30)/40)*100}%`);humidityDown.disabled=!room.zone||season!=='summer'||humidity<=30;humidityUp.disabled=!room.zone||season!=='summer'||humidity>=70;}humidityDown.disabled=humidityUp.disabled=!room.zone||season!=='summer';humidityDown.addEventListener('click',()=>setHumidity(humidity-1));humidityUp.addEventListener('click',()=>setHumidity(humidity+1));humiditySlider.addEventListener('input',()=>setHumidity(Number(humiditySlider.value)));setHumidity(humidity);
+    function setTarget(next){target=Math.min(30,Math.max(5,Math.round(next*2)/2));previewTargets.set(zoneKey,target);output.value=targetDisplay(target);output.textContent=targetDisplay(target);slider.value=String(target);slider.style.setProperty('--range-progress',`${((target-5)/25)*100}%`);decrease.disabled=!room.zone||target<=5;increase.disabled=!room.zone||target>=30;}decrease.disabled=increase.disabled=!room.zone;decrease.addEventListener('click',()=>{setTarget(target-.5);acknowledge(output);});increase.addEventListener('click',()=>{setTarget(target+.5);acknowledge(output);});slider.addEventListener('input',()=>setTarget(Number(slider.value)));setTarget(target);
+    function setHumidity(next){humidity=Math.min(70,Math.max(30,Math.round(next)));previewHumidities.set(zoneKey,humidity);humidityOutput.value=String(humidity);humidityOutput.textContent=String(humidity);humiditySlider.value=String(humidity);humiditySlider.style.setProperty('--range-progress',`${((humidity-30)/40)*100}%`);humidityDown.disabled=!room.zone||season!=='summer'||humidity<=30;humidityUp.disabled=!room.zone||season!=='summer'||humidity>=70;}humidityDown.disabled=humidityUp.disabled=!room.zone||season!=='summer';humidityDown.addEventListener('click',()=>{setHumidity(humidity-1);acknowledge(humidityOutput);});humidityUp.addEventListener('click',()=>{setHumidity(humidity+1);acknowledge(humidityOutput);});humiditySlider.addEventListener('input',()=>setHumidity(Number(humiditySlider.value)));setHumidity(humidity);
     const humidityEnabled=Boolean(room.zone&&season==='summer');humidityGroup.dataset.active=String(humidityEnabled);humidityStatus.classList.toggle('disabled-status',!humidityEnabled);humidityStatusIcon.hidden=humidityEnabled;humidityStatusText.textContent=t(humidityEnabled?'room.preview':'room.summerOnly');humiditySlider.disabled=!humidityEnabled;humidityDown.disabled=!humidityEnabled||humidity<=30;humidityUp.disabled=!humidityEnabled||humidity>=70;roomView.append(control);root.append(roomView);
     const sources=el('div','sources');sources.append(sourceCard('Viessmann 2701',data.sources['2701']),sourceCard('ViCare · Home Assistant',data.sources.vicare));root.append(sources);return root;}
   const themeChoices=[{id:'auto',title:'theme.auto',description:'theme.autoDescription'},{id:'light',title:'theme.light',description:'theme.lightDescription'},{id:'dark',title:'theme.dark',description:'theme.darkDescription'}];
   const paletteChoices=[{id:'forest',title:'palette.forest',description:'palette.forestDescription'},{id:'ocean',title:'palette.ocean',description:'palette.oceanDescription'},{id:'violet',title:'palette.violet',description:'palette.violetDescription'},{id:'custom',title:'palette.custom',description:'palette.customDescription'}];
   const languageChoices=[{id:'it',title:'language.it',description:'language.itDescription'},{id:'en',title:'language.en',description:'language.enDescription'}];
-  function customPaletteEditor(){const section=el('section','custom-palette-editor');section.hidden=preferences.palette!=='custom';const mode=preferences.theme==='auto'?systemTheme():preferences.theme,heading=el('div','custom-palette-heading');heading.append(el('h3','',t('palette.customTitle')),el('p','',t('palette.customMode',{mode:t(mode==='dark'?'theme.dark':'theme.light')})));section.append(heading);const fields=el('div','custom-color-fields');const warning=el('p','custom-palette-warning',t('palette.customContrast'));warning.setAttribute('role','status');for(const [key,label] of [['background','palette.colorBackground'],['surface','palette.colorSurface'],['accent','palette.colorAccent']]){const field=el('label','custom-color-field'),copy=el('span','',t(label)),input=el('input','custom-color-input'),value=el('output','custom-color-value',customPalette[mode][key].toUpperCase());input.type='color';input.value=customPalette[mode][key];input.setAttribute('aria-label',t(label));input.addEventListener('input',()=>{customPalette[mode][key]=input.value.toLowerCase();value.value=input.value.toUpperCase();value.textContent=value.value;localStorage.setItem('heating-dashboard-custom-palette',JSON.stringify(customPalette));const contrast=applyCustomPalette(mode);warning.hidden=contrast.textContrast>=4.5&&contrast.accentContrast>=4.5;syncCustomSwatch(mode);});field.append(copy,input,value);fields.append(field);}const darkTextContrast=Math.min(...['background','surface'].map(key=>contrastRatio('#202a26',customPalette[mode][key]))),lightTextContrast=Math.min(...['background','surface'].map(key=>contrastRatio('#f7f9f7',customPalette[mode][key]))),contrast=Math.max(darkTextContrast,lightTextContrast);const accentContrast=Math.min(contrastRatio(customPalette[mode].accent,customPalette[mode].background),contrastRatio(customPalette[mode].accent,customPalette[mode].surface));warning.hidden=contrast>=4.5&&accentContrast>=4.5;section.append(fields,warning);return section;}
-  function settingsCard(title,description,symbol,key,choices,swatches=false){const section=el('section','settings-card'),head=el('div','settings-card-head'),badge=el('span','settings-icon');badge.append(icon(symbol));const copy=el('div','');copy.append(el('h2','',t(title)),el('p','',t(description)));head.append(badge,copy);section.append(head);const grid=el('div',`setting-options${choices.length===2?' two':''}`);grid.setAttribute('role','group');grid.setAttribute('aria-label',t(title));for(const choice of choices){const button=el('button','setting-option');button.type='button';button.setAttribute('aria-pressed',String(preferences[key]===choice.id));if(swatches){const swatch=el('span',`palette-swatch ${choice.id}`);swatch.setAttribute('aria-hidden','true');swatch.append(el('i'),el('i'),el('i'));button.append(swatch);if(choice.id==='custom'){const mode=preferences.theme==='auto'?systemTheme():preferences.theme;swatch.style.setProperty('--preview-bg',customPalette[mode].background);swatch.style.setProperty('--preview-surface',customPalette[mode].surface);swatch.style.setProperty('--preview-accent',customPalette[mode].accent);}}const text=el('span','setting-option-copy');text.append(el('strong','',t(choice.title)),el('small','',t(choice.description)));button.append(text);if(preferences[key]===choice.id){const selected=icon('check');selected.classList.add('setting-selected');selected.setAttribute('aria-hidden','true');button.append(selected);}button.addEventListener('click',()=>updatePreference(key,choice.id));grid.append(button);}section.append(grid);if(swatches)section.append(customPaletteEditor());return section;}
+
+  Object.assign(messages.it,{
+    'nav.back':'Torna alla panoramica','color.title':'Scegli il colore',
+    'color.description':'Regola i cursori oppure inserisci un codice esadecimale.',
+    'color.hue':'Tonalità','color.saturation':'Saturazione','color.lightness':'Luminosità',
+    'color.hex':'Codice HEX','color.invalid':'Inserisci 3 o 6 cifre esadecimali, per esempio #3D766D.',
+    'color.cancel':'Annulla','color.apply':'Applica colore'
+  });
+  Object.assign(messages.en,{
+    'nav.back':'Back to overview','color.title':'Choose a color',
+    'color.description':'Adjust the sliders or enter a hexadecimal code.',
+    'color.hue':'Hue','color.saturation':'Saturation','color.lightness':'Lightness',
+    'color.hex':'HEX code','color.invalid':'Enter 3 or 6 hexadecimal digits, for example #3D766D.',
+    'color.cancel':'Cancel','color.apply':'Apply color'
+  });
+  function normalizedHex(value){
+    const match=value.trim().match(/^#?([0-9a-f]{6}|[0-9a-f]{3})$/i);
+    if(!match)return null;
+    return '#'+(match[1].length===3?[...match[1]].map(c=>c+c).join(''):match[1]).toLowerCase();
+  }
+  function hexToHsl(hex){
+    const [r,g,b]=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255);
+    const max=Math.max(r,g,b),min=Math.min(r,g,b),delta=max-min,l=(max+min)/2;
+    const h=delta===0?0:max===r?((g-b)/delta+6)%6:max===g?(b-r)/delta+2:(r-g)/delta+4;
+    return [h*60,delta===0?0:delta/(1-Math.abs(2*l-1))*100,l*100];
+  }
+  function hslToHex(h,s,l){
+    s/=100;l/=100;
+    const a=s*Math.min(l,1-l),channel=n=>{
+      const k=(n+h/30)%12;
+      return Math.round((l-a*Math.max(-1,Math.min(k-3,9-k,1)))*255).toString(16).padStart(2,'0');
+    };
+    return '#'+[0,8,4].map(channel).join('');
+  }
+  function openColorDialog(label,initial,onApply){
+    const dialog=$('color-dialog');
+    const form=el('form',''),title=el('h2','',t('color.title')+' · '+label);
+    title.id='color-dialog-title';
+    const description=el('p','color-dialog-description',t('color.description'));
+    description.id='color-dialog-description';
+    const preview=el('div','color-preview');preview.setAttribute('aria-hidden','true');
+    form.append(title,description,preview);
+    const channels=['hue','saturation','lightness'].map((name,index)=>{
+      const field=el('label','color-channel'),input=el('input');
+      input.type='range';input.min='0';input.max=index===0?'360':'100';input.step='1';
+      input.setAttribute('aria-label',t('color.'+name));
+      field.append(el('span','',t('color.'+name)),input);form.append(field);return input;
+    });
+    const hexField=el('label','color-hex'),hex=el('input');
+    hex.type='text';hex.maxLength=7;hex.autocomplete='off';hex.spellcheck=false;hex.autofocus=true;
+    hex.setAttribute('aria-label',t('color.hex'));hex.setAttribute('aria-describedby','color-error');
+    hexField.append(el('span','',t('color.hex')),hex);
+    const error=el('p','color-error');error.id='color-error';error.setAttribute('aria-live','polite');
+    const actions=el('div','color-dialog-actions'),cancel=el('button','',t('color.cancel')),apply=el('button','color-apply',t('color.apply'));
+    cancel.type='button';apply.type='submit';cancel.addEventListener('click',()=>dialog.close());
+    actions.append(cancel,apply);form.append(hexField,error,actions);
+    let selected=initial,hsl=hexToHsl(initial);
+    function paint(syncHex=true){
+      preview.style.setProperty('--selected-color',selected);
+      if(syncHex)hex.value=selected.toUpperCase();
+      channels.forEach((input,index)=>input.value=String(hsl[index]));
+      channels[0].style.setProperty('--channel-track','linear-gradient(to right,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)');
+      channels[1].style.setProperty('--channel-track',`linear-gradient(to right,hsl(${hsl[0]} 0% ${hsl[2]}%),hsl(${hsl[0]} 100% ${hsl[2]}%))`);
+      channels[2].style.setProperty('--channel-track',`linear-gradient(to right,#000,hsl(${hsl[0]} ${hsl[1]}% 50%),#fff)`);
+      hex.setAttribute('aria-invalid','false');error.textContent='';apply.disabled=false;
+    }
+    hex.addEventListener('input',()=>{
+      const value=normalizedHex(hex.value);
+      hex.setAttribute('aria-invalid',String(!value));error.textContent=value?'':t('color.invalid');apply.disabled=!value;
+      if(value){selected=value;hsl=hexToHsl(value);paint(false);}
+    });
+    channels.forEach((input,index)=>input.addEventListener('input',()=>{
+      hsl[index]=Number(input.value);selected=hslToHex(...hsl);paint();
+    }));
+    form.addEventListener('submit',event=>{
+      event.preventDefault();const value=normalizedHex(hex.value);
+      if(!value)return;
+      onApply(value);dialog.close();
+    });
+    form.addEventListener('keydown',event=>{
+      if(event.key!=='Tab')return;
+      const controls=[...form.querySelectorAll('input:not(:disabled),button:not(:disabled)')];
+      const first=controls[0],last=controls.at(-1);
+      if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}
+      else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
+    });
+    dialog.replaceChildren(form);paint();dialog.showModal();
+    if(!matchMedia('(prefers-reduced-motion: reduce)').matches)dialog.animate([{opacity:.7,transform:'scale(.98)'},{opacity:1,transform:'scale(1)'}],{duration:160,easing:'cubic-bezier(.16,1,.3,1)'});
+  }
+  function customPaletteEditor(){
+    const section=el('section','custom-palette-editor');section.hidden=preferences.palette!=='custom';
+    const mode=preferences.theme==='auto'?systemTheme():preferences.theme,heading=el('div','custom-palette-heading');
+    heading.append(el('h3','',t('palette.customTitle')),el('p','',t('palette.customMode',{mode:t(mode==='dark'?'theme.dark':'theme.light')})));section.append(heading);
+    const fields=el('div','custom-color-fields'),warning=el('p','custom-palette-warning',t('palette.customContrast'));
+    warning.setAttribute('role','status');
+    function updateWarning(){
+      const colors=customPalette[mode];
+      const textContrast=Math.max(...['#202a26','#f7f9f7'].map(text=>Math.min(...['background','surface'].map(key=>contrastRatio(text,colors[key])))));
+      const accentContrast=Math.min(...['background','surface'].map(key=>contrastRatio(colors.accent,colors[key])));
+      warning.hidden=textContrast>=4.5&&accentContrast>=4.5;
+    }
+    for(const [key,label] of [['background','palette.colorBackground'],['surface','palette.colorSurface'],['accent','palette.colorAccent']]){
+      const field=el('div','custom-color-field'),copy=el('span','',t(label)),input=el('button','custom-color-input'),value=el('output','custom-color-value',customPalette[mode][key].toUpperCase());
+      input.type='button';input.style.setProperty('--swatch',customPalette[mode][key]);input.setAttribute('aria-label',t(label));input.setAttribute('aria-haspopup','dialog');
+      input.addEventListener('click',()=>openColorDialog(t(label),customPalette[mode][key],color=>{
+        customPalette[mode][key]=color;value.value=color.toUpperCase();input.style.setProperty('--swatch',color);
+        localStorage.setItem('heating-dashboard-custom-palette',JSON.stringify(customPalette));
+        applyCustomPalette(mode);updateWarning();syncCustomSwatch(mode);
+      }));
+      field.append(copy,input,value);fields.append(field);
+    }
+    updateWarning();section.append(fields,warning);return section;
+  }
+  function settingsCard(title,description,symbol,key,choices,swatches=false){const section=el('section','settings-card'),head=el('div','settings-card-head'),badge=el('span','settings-icon');badge.append(icon(symbol));const copy=el('div','');copy.append(el('h2','',t(title)),el('p','',t(description)));head.append(badge,copy);section.append(head);const grid=el('div',`setting-options${choices.length===2?' two':''}`);grid.setAttribute('role','group');grid.setAttribute('aria-label',t(title));for(const choice of choices){const button=el('button','setting-option');button.type='button';button.setAttribute('aria-pressed',String(preferences[key]===choice.id));if(swatches){const swatch=el('span',`palette-swatch ${choice.id}`);swatch.setAttribute('aria-hidden','true');swatch.append(el('i'),el('i'),el('i'));button.append(swatch);if(choice.id==='custom'){const mode=preferences.theme==='auto'?systemTheme():preferences.theme;swatch.style.setProperty('--preview-bg',customPalette[mode].background);swatch.style.setProperty('--preview-surface',customPalette[mode].surface);swatch.style.setProperty('--preview-accent',customPalette[mode].accent);}}const text=el('span','setting-option-copy');text.append(el('strong','',t(choice.title)),el('small','',t(choice.description)));button.append(text);if(preferences[key]===choice.id){const selected=icon('check');selected.classList.add('setting-selected');selected.setAttribute('aria-hidden','true');button.append(selected);}button.dataset.preference=key;button.dataset.choice=choice.id;button.addEventListener('click',()=>updatePreference(key,choice.id));grid.append(button);}section.append(grid);if(swatches)section.append(customPaletteEditor());return section;}
   function renderSettings(data){const root=el('div',''),heading=el('div','heading'),intro=el('div','');intro.append(el('div','eyebrow',t('settings.eyebrow')),el('h1','',t('settings.title')),el('p','',t('settings.description')));heading.append(intro);root.append(heading,navigation('settings'));const content=el('div','settings-page');content.append(settingsCard('theme.title','theme.description','dark_mode','theme',themeChoices),settingsCard('palette.title','palette.description','palette','palette',paletteChoices,true),settingsCard('language.title','language.description','language','language',languageChoices));content.append(el('p','settings-note',t('settings.saved')));root.append(content);return root;}
   // Canonical ViCare translation keys from Home Assistant's sensor descriptions.
   // Match registry metadata before entity IDs, which users can rename or localize.
@@ -160,7 +299,7 @@
   }
   function renderSystem(data){
     const root=el('div',''),heading=el('div','heading'),intro=el('div','');
-    intro.append(el('h1','',t('system.title')),el('p','',t('system.description')));heading.append(intro);root.append(heading,navigation('system'));
+    intro.append(el('div','eyebrow',t('system.eyebrow')),el('h1','',t('system.title')),el('p','',t('system.description')));heading.append(intro);root.append(heading,navigation('system'));
     const content=el('div','system-overview');let count=0;
     for(const group of systemGroups){
       const section=el('section',`system-section system-${group.title}`),title=el('h2','');title.append(icon(group.symbol),document.createTextNode(t(`system.${group.title}`)));const readings=el('dl','system-readings');
@@ -171,7 +310,7 @@
     content.append(el('p','system-note',t('system.availability')));root.append(content);
     const sources=el('div','sources');sources.append(sourceCard('Viessmann 2701',data.sources['2701']),sourceCard('ViCare · Home Assistant',data.sources.vicare));root.append(sources);return root;
   }
-  function render(data){applyPreferences();latest=data;const list=rooms(data),hash=decodeURIComponent(location.hash.slice(1));let view;if(hash.startsWith('room/')){const key=hash.slice(5),room=list.find(r=>r.key===key);view=room?renderRoom(data,room,list):renderOverview(data,list);}else if(hash==='system')view=renderSystem(data);else if(hash==='settings')view=renderSettings(data);else view=renderOverview(data,list);$('app').replaceChildren(view);}
+  function render(data){latest=data;if($('color-dialog').open)return;applyPreferences();const list=rooms(data),hash=decodeURIComponent(location.hash.slice(1));let view;if(hash.startsWith('room/')){const key=hash.slice(5),room=list.find(r=>r.key===key);view=room?renderRoom(data,room,list):renderOverview(data,list);}else if(hash==='system')view=renderSystem(data);else if(hash==='settings')view=renderSettings(data);else view=renderOverview(data,list);$('app').replaceChildren(view);}
   async function refresh(){try{const response=await fetch('api/status',{cache:'no-store'});if(!response.ok)throw new Error(`HTTP ${response.status}`);render(await response.json());}catch(error){$('app').replaceChildren(el('p','empty',t('error.dashboard',{message:error.message})));}}
-  addEventListener('hashchange',()=>{if(latest)render(latest);});refresh();setInterval(refresh,15000);
+  addEventListener('hashchange',()=>{if($('color-dialog').open)$('color-dialog').close();if(latest)render(latest);});refresh();setInterval(refresh,15000);
 </script></body></html>

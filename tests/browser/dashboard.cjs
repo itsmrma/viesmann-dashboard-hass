@@ -6,6 +6,7 @@ const path = require('node:path');
 const { chromium } = require('playwright');
 const root = path.resolve(__dirname, '../..');
 const screenshotSet = process.argv.find(arg => arg.startsWith('--screenshots='))?.split('=')[1];
+const evidenceDir = process.argv.find(arg => arg.startsWith('--evidence-dir='))?.split('=')[1] || 'docs/issue-22';
 const htmlFile = process.argv.find(arg => arg.startsWith('--html='))?.slice('--html='.length)
   || path.join(root, 'addon/viesmann_dashboard/viesmann_dashboard/www/index.html');
 const date = '2026-10-27T12:00:00Z';
@@ -33,7 +34,7 @@ let payload = structuredClone(fixture);
 const failures = [];
 function check(name, run) {
   return Promise.resolve().then(run).then(() => console.log(`PASS ${name}`), error => {
-    failures.push(name); console.error(`FAIL ${name}: ${error.message}`);
+    failures.push(name); console.error(`FAIL ${name}: ${error.stack}`);
   });
 }
 async function main() {
@@ -57,9 +58,9 @@ async function main() {
   await page.evaluate(() => document.fonts.ready);
   async function capture(name) {
     if (!screenshotSet) return;
-    const dir = path.join(root, 'docs/issue-22', screenshotSet);
+    const dir = path.join(root, evidenceDir, screenshotSet);
     fs.mkdirSync(dir, { recursive: true });
-    await page.screenshot({ path: path.join(dir, `${name}.png`), fullPage: true });
+    await page.screenshot({ path: path.join(dir, `${name}.png`), fullPage: !name.startsWith('color-dialog'), animations: 'disabled' });
   }
   let visitNumber = 0;
   async function visit(hash) {
@@ -107,10 +108,82 @@ async function main() {
     assert.match(text, /Mandata/); assert.match(text, /34[,.]8/);
     assert.doesNotMatch(text, /signal_strength|compressor_hours_loadclass1/);
   });
+  await check('back link returns a directly opened room to the overview', async () => {
+    await visit('#room/cucina');
+    await page.getByRole('link', { name: 'Torna alla panoramica' }).click();
+    await page.locator('.room-card').first().waitFor();
+    assert.equal(await page.locator('h1').textContent(), 'Panoramica');
+  });
+  await check('internal color dialog validates HEX, applies, cancels and survives polling', async () => {
+    await visit('#settings');
+    await page.getByRole('button', { name: 'Personalizzata', exact: false }).click();
+    assert.equal(await page.locator('input[type=color]').count(), 0);
+    const trigger = page.getByRole('button', { name: 'Accento', exact: true });
+    await trigger.click();
+    const dialog = page.getByRole('dialog'), hex = dialog.getByRole('textbox', { name: 'Codice HEX' });
+    assert.equal(await hex.evaluate(node => node === document.activeElement), true);
+    await hex.fill('#xyz');
+    assert.equal(await dialog.getByRole('button', { name: 'Applica colore' }).isDisabled(), true);
+    assert.equal(await hex.getAttribute('aria-invalid'), 'true');
+    await hex.fill('#A1B2C3');
+    // Simulate the same render used by the 15-second status refresh.
+    await page.evaluate(() => render(latest));
+    assert.equal(await hex.inputValue(), '#A1B2C3');
+    assert.equal(await dialog.isVisible(), true);
+    await dialog.getByRole('button', { name: 'Applica colore' }).click();
+    const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('heating-dashboard-custom-palette')));
+    assert.equal(stored.light.accent, '#a1b2c3');
+    assert.equal(await trigger.evaluate(node => node === document.activeElement), true);
+    await trigger.click();await hex.fill('#123456');await page.keyboard.press('Escape');
+    assert.equal(await dialog.isVisible(), false);
+    await trigger.click();assert.equal(await hex.inputValue(), '#A1B2C3');
+    await hex.fill('#abc');await dialog.getByRole('button', { name: 'Annulla', exact: true }).click();
+    await trigger.click();assert.equal(await hex.inputValue(), '#A1B2C3');
+    await hex.fill('369');await hex.press('Enter');
+    await page.reload();
+    await trigger.click();assert.equal(await hex.inputValue(), '#336699');
+    await dialog.getByRole('slider', { name: 'Tonalità' }).fill('180');
+    assert.notEqual(await hex.inputValue(), '#336699');
+    await capture('color-dialog-desktop');
+    await page.setViewportSize({ width: 320, height: 568 });
+    assert.equal(await dialog.evaluate(node => node.scrollWidth <= node.clientWidth), true);
+    // Keep focus inside the modal, including Tab at either end.
+    await dialog.getByRole('button', { name: 'Applica colore' }).focus();await page.keyboard.press('Tab');
+    assert.equal(await dialog.evaluate(node => node.contains(document.activeElement)), true);
+    await capture('color-dialog-mobile');
+    await page.keyboard.press('Escape');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.evaluate(() => { localStorage.clear(); });
+  });
+  await check('theme-specific palettes, keyboard feedback and reduced motion', async () => {
+    await visit('#settings');
+    await page.getByRole('button', { name: 'Scuro Per ambienti', exact: false }).click();
+    await page.getByRole('button', { name: 'Personalizzata', exact: false }).click();
+    const trigger = page.getByRole('button', { name: 'Accento', exact: true });
+    await trigger.click();
+    await page.getByRole('textbox', { name: 'Codice HEX' }).fill('#8055aa');
+    await page.getByRole('button', { name: 'Applica colore' }).click();
+    const colors = await page.evaluate(() => JSON.parse(localStorage.getItem('heating-dashboard-custom-palette')));
+    assert.equal(colors.dark.accent, '#8055aa');assert.notEqual(colors.light.accent, '#8055aa');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await trigger.click();
+    assert.equal(await page.getByRole('dialog').evaluate(node => node.getAnimations().length), 0);
+    await capture('color-dialog-dark');
+    await page.keyboard.press('Escape');
+    await visit('#room/cucina');
+    await page.getByRole('button', { name: 'Aumenta temperatura obiettivo di mezzo grado', exact: true }).focus();
+    await page.keyboard.press('Enter');
+    assert.equal(await page.locator('.temperature-control output').textContent(), '21.5');
+    assert.equal(await page.locator('.temperature-control output').evaluate(node => node.getAnimations().length), 0);
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await page.evaluate(() => { localStorage.clear(); });
+  });
   for (const width of [320, 375, 390, 520, 600, 760, 768, 1024, 1280]) {
     await page.setViewportSize({ width, height: 900 });
+    const navigationTops = [];
     for (const hash of ['', '#room/cucina', '#system', '#settings']) {
       await visit(hash);
+      if (!hash.startsWith('#room')) navigationTops.push(await page.locator('nav').evaluate(node => node.getBoundingClientRect().top));
       await check(`no overflow ${width}px ${hash || 'overview'}`, async () => {
         const size = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }));
         assert.ok(size.scroll <= size.client, JSON.stringify(size));
@@ -118,6 +191,9 @@ async function main() {
       if (hash === '#room/cucina') await check(`equal controls ${width}px`, equalControls);
       if (width === 390 && hash !== '#settings') await capture(hash === '#system' ? 'system-mobile' : hash ? 'room-mobile' : 'overview-mobile');
     }
+    await check(`stable main-page headings ${width}px`, () => {
+      assert.ok(Math.max(...navigationTops) - Math.min(...navigationTops) <= 1, JSON.stringify(navigationTops));
+    });
   }
   await page.setViewportSize({ width: 390, height: 844 });
   await check('winter disables humidity; summer enables only a local preview', async () => {
