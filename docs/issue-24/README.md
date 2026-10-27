@@ -20,6 +20,8 @@ The new color dialog: [desktop](after/color-dialog-desktop.png), [320px mobile](
 - `RELEASE_BASE_REF=origin/main python -m unittest discover -s tests -p 'test_*.py' -v`: 11 tests pass on Python 3.14. Release checks verify matching current-version notes, PNG sizes, and version/changelog changes relative to the base revision, alongside existing backend regressions.
 - `git diff --check`: passes.
 
+Follow-up: the color slider thumbs previously rendered about 4px below the track because the native thumb retained its default geometry against an 8px custom track. Explicit 16px thumbs replace native geometry, with separate WebKit and Firefox styling. Screenshot-pixel regression checks failed before the fix and pass afterward for all three color sliders on desktop and 320px mobile; dialog evidence above has been refreshed. Actual Safari/iOS remains part of final release validation.
+
 The icon was generated with ImageGen and packaged as 128px and 256px PNGs. Home Assistant metadata follows its official [presentation](https://developers.home-assistant.io/docs/apps/presentation/) and [configuration](https://contributors.home-assistant.io/apps/reference/configuration/) contracts.
 
 Docker is unavailable locally; container build remains a CI check. CI is not awaited. Home Assistant Supervisor behavior and physical PC/Mac/iOS checks remain in the single [final release validation](../../addon/viesmann_dashboard/DOCS.md#final-release-validation).

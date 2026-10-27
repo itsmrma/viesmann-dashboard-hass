@@ -67,6 +67,29 @@ async function main() {
     await page.goto(`${base}?case=${++visitNumber}${hash}`);
     await page.locator('nav').waitFor(); await page.evaluate(() => document.fonts.ready);
   }
+  async function checkColorSliderAlignment() {
+    for (const slider of await page.locator('.color-channel input').all()) {
+      const png = (await slider.screenshot({ animations: 'disabled' })).toString('base64');
+      const geometry = await slider.evaluate(async (input, png) => {
+        const color = getComputedStyle(input).accentColor.match(/[\d.]+/g).slice(0, 3).map(Number);
+        const image = new Image();image.src = `data:image/png;base64,${png}`;await image.decode();
+        const canvas = document.createElement('canvas');canvas.width = image.width;canvas.height = image.height;
+        const context = canvas.getContext('2d');context.drawImage(image, 0, 0);
+        const { data } = context.getImageData(0, 0, image.width, image.height), rows = [];
+        for (let y = 0; y < image.height; y++) {
+          let count = 0;
+          for (let x = 0; x < image.width; x++) {
+            const offset = (y * image.width + x) * 4;
+            if (color.every((value, channel) => Math.abs(data[offset + channel] - value) <= 1)) count++;
+          }
+          if (count >= 4) rows.push(y);
+        }
+        return { center: (rows[0] + rows.at(-1) + 1) / 2, trackCenter: image.height / 2 };
+      }, png);
+      assert.ok(Math.abs(geometry.center - geometry.trackCenter) <= 1,
+        `${await slider.getAttribute('aria-label')}: thumb ${geometry.center}px, track ${geometry.trackCenter}px`);
+    }
+  }
   await capture('overview-desktop');
   await check('requested room order', async () => {
     const names = await page.locator('.room-title').allTextContents();
@@ -144,8 +167,10 @@ async function main() {
     await trigger.click();assert.equal(await hex.inputValue(), '#336699');
     await dialog.getByRole('slider', { name: 'Tonalità' }).fill('180');
     assert.notEqual(await hex.inputValue(), '#336699');
+    await check('color slider thumbs centered on desktop tracks', checkColorSliderAlignment);
     await capture('color-dialog-desktop');
     await page.setViewportSize({ width: 320, height: 568 });
+    await check('color slider thumbs centered on mobile tracks', checkColorSliderAlignment);
     assert.equal(await dialog.evaluate(node => node.scrollWidth <= node.clientWidth), true);
     // Keep focus inside the modal, including Tab at either end.
     await dialog.getByRole('button', { name: 'Applica colore' }).focus();await page.keyboard.press('Tab');

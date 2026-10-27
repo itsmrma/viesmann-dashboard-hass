@@ -5,6 +5,7 @@
 - Aggiunta un'icona a termometro per l'app installata e per la barra laterale di Home Assistant.
 - Aggiunto il pulsante «Torna alla panoramica» nelle viste delle stanze.
 - Sostituito il selettore colori di sistema con un dialog interno: tonalità, saturazione, luminosità e codice HEX, con Applica e Annulla.
+- Centrati i pallini dei cursori sulle rispettive barre dei colori.
 - Allineata l'intestazione Impianto alle altre pagine con l'etichetta «Dettaglio».
 - Aggiunti feedback rapidi ai pulsanti, alle preferenze e alle anteprime dei valori, rispettando il movimento ridotto.
 - Reso disponibile questo changelog in Home Assistant e aggiunti controlli automatici per richiedere versione e note aggiornate nelle release future.
