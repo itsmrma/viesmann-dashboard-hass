@@ -16,7 +16,11 @@ Restart the app after changing its options. Bump `version` in `config.yaml` befo
 
 ## Dashboard views and theme
 
-The overview and room navigation are generated from the live 2701 zones and Home Assistant areas used by discovered ViCare entities. Select a room card on the overview to open its dedicated detail view; use **Panoramica** to return. ViCare entities appear in a room view when their Home Assistant area name matches a 2701 zone name; entities without an assigned area remain available under **Impianto**. Adding or renaming zones and areas does not require dashboard configuration.
+The overview is generated from live 2701 zones and Home Assistant areas. Rooms appear in this order: Cucina, Sala, Matrimoniale, Cameretta, Armadi, Bagni, then any additional areas alphabetically, with Circuito diretto last. Select a room card to open its dedicated detail view; use **Panoramica** to return. Adding or renaming zones and areas does not require dashboard configuration.
+
+The temperature and humidity controls are local previews only. The season comes from the 2701 controller and cannot be previewed or changed. Humidity preview is enabled only when the controller reports summer and a zone is linked. Both control panels share the same height, number typography, and slider alignment; they stack on narrow screens.
+
+**Impianto** groups selected ViCare sensors into today's electricity consumption, water temperatures, and heat pump operation (outdoor temperature, compressor power/modulation, circuit pressure). It includes readings assigned to Home Assistant areas. Canonical entity-registry translation keys identify sensors even after renaming; canonical entity-ID suffixes are a fallback when metadata is absent. Multiple matching sensors remain separate and display their source names. Technical diagnostics and historical counters are omitted. Native units are retained, missing sensors are omitted, and unavailable values show a dash. Daily consumption is neither summed nor inferred. Actual availability depends on the device, API plan, and enabled entities in Home Assistant.
 
 The theme selector offers automatic, light, and dark modes. Automatic mode follows the Home Assistant page theme when its background color is readable from Ingress; otherwise it follows the operating system color preference. The selection is remembered in the browser.
 
@@ -34,9 +38,21 @@ Run the standard-library test suite from the repository root:
 python3 -m unittest discover -s tests -p 'test_*.py'
 ```
 
+Run the browser regression checks (Node.js 20 or later):
+
+```sh
+npm ci
+npx playwright install chromium
+npm run test:ui
+```
+
+The browser checks serve the production HTML with synthetic read-only API data. They cover room ordering, equal control geometry and typography, mobile overflow, source metadata, missing readings, themes, localization, and synthesized Chromium touch input. Add `-- --screenshots=after` to regenerate the review screenshots. See [issue #22 evidence](../../docs/issue-22/README.md) for before/after captures and verification details.
+
 The app uses a prebuilt multi-architecture GHCR image, published by GitHub Actions after changes reach `main`. The image version follows `version` in `config.yaml`. Home Assistant Supervisor apps require a Supervisor installation; Home Assistant Container/Core is not supported by this package.
 
 
 ## Final release validation
 
 Once a built app is available on the target Home Assistant system, perform one consolidated manual pass on PC, Mac, and iOS: configure the controller URL, session cookie, and polling interval; confirm live readings, independent freshness, stale/unavailable behavior after a controller or entity failure, Ingress navigation, and responsive room-level layout. Confirm no UI action can issue a device command.
+
+Include the issue #22 scenarios in that same pass: confirm the requested room order and final direct-circuit card; equal temperature/humidity panels; absence of a season preview; winter/summer humidity availability; readable Impianto values matching the enabled ViCare sensors, including area-assigned or renamed entities; portrait/landscape layout, zoom, and native slider drag versus vertical page scrolling in Safari/iOS. Browser emulation and synthesized Chromium touch do not replace this physical-device check.

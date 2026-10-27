@@ -1,0 +1,189 @@
+// Run with npm run test:ui. Add -- --screenshots=before (or after) for PR evidence.
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const http = require('node:http');
+const path = require('node:path');
+const { chromium } = require('playwright');
+const root = path.resolve(__dirname, '../..');
+const screenshotSet = process.argv.find(arg => arg.startsWith('--screenshots='))?.split('=')[1];
+const htmlFile = process.argv.find(arg => arg.startsWith('--html='))?.slice('--html='.length)
+  || path.join(root, 'addon/viesmann_dashboard/viesmann_dashboard/www/index.html');
+const date = '2026-10-27T12:00:00Z';
+const entity = (key, state, unit, extra = {}) => ({
+  entity_id: `sensor.vicare_${key}`, translation_key: key, device_id: 'heat-pump',
+  state: String(state), last_updated: date, area: null,
+  attributes: { friendly_name: key.replaceAll('_', ' '), unit_of_measurement: unit }, ...extra,
+});
+const fixture = {
+  sources: Object.fromEntries(['2701', 'vicare'].map(key => [key, { status: 'fresh', last_updated: date }])),
+  '2701': { season: 'winter', zones: ['Circuito diretto', 'Cucina', 'Sala', 'Matrimoniale', 'Cameretta', 'Armadi', 'Bagni'].map((name, id) => ({
+    id, name, room_temperature: 20.5 + id / 10, target_temperature: 21, humidity: id ? 48 : null, active: id % 2 === 0,
+  })) },
+  vicare: [
+    entity('power_consumption_today', 8.4, 'kWh', { area: 'Cucina', entity_id: 'sensor.renamed_daily' }),
+    entity('energy_summary_consumption_heating_currentday', 6.1, 'kWh'),
+    entity('energy_dhw_summary_consumption_heating_currentday', 2.3, 'kWh'),
+    entity('supply_temperature', 34.8, '°C'), entity('return_temperature', 29.1, '°C'),
+    entity('dhw_storage_temperature', 48.2, '°C'), entity('outside_temperature', 12.3, '°C'),
+    entity('compressor_power', 1.2, 'kW'), entity('compressor_modulation', 42, '%'),
+    entity('signal_strength', -62, 'dBm'), entity('compressor_hours_loadclass1', 4567, 'h'),
+  ],
+};
+let payload = structuredClone(fixture);
+const failures = [];
+function check(name, run) {
+  return Promise.resolve().then(run).then(() => console.log(`PASS ${name}`), error => {
+    failures.push(name); console.error(`FAIL ${name}: ${error.message}`);
+  });
+}
+async function main() {
+  const server = http.createServer((req, res) => {
+    if (req.url.endsWith('/api/status')) {
+      res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(payload));
+    } else {
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.end(fs.readFileSync(htmlFile));
+    }
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, hasTouch: true, timezoneId: 'Europe/Rome' });
+  const errors = [], writes = [];
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('request', request => { if (!['GET', 'HEAD'].includes(request.method())) writes.push(request.url()); });
+  const base = `http://127.0.0.1:${server.address().port}/`;
+  await page.goto(base);
+  await page.locator('.room-card').first().waitFor();
+  await page.evaluate(() => document.fonts.ready);
+  async function capture(name) {
+    if (!screenshotSet) return;
+    const dir = path.join(root, 'docs/issue-22', screenshotSet);
+    fs.mkdirSync(dir, { recursive: true });
+    await page.screenshot({ path: path.join(dir, `${name}.png`), fullPage: true });
+  }
+  let visitNumber = 0;
+  async function visit(hash) {
+    await page.goto(`${base}?case=${++visitNumber}${hash}`);
+    await page.locator('nav').waitFor(); await page.evaluate(() => document.fonts.ready);
+  }
+  await capture('overview-desktop');
+  await check('requested room order', async () => {
+    const names = await page.locator('.room-title').allTextContents();
+    assert.deepEqual(names, ['Cucina','Sala','Matrimoniale','Cameretta','Armadi','Bagni','Circuito diretto']);
+    const boxes = await page.locator('.room-card').evaluateAll(nodes => nodes.map(node => ({ x: node.offsetLeft, y: node.offsetTop })));
+    assert.equal(boxes.at(-1).x, boxes[0].x); assert.ok(boxes.at(-1).y > boxes.at(-2).y);
+  });
+  await visit('#room/cucina');
+  await capture('room-desktop');
+  await check('season preview removed', async () => assert.equal(await page.locator('.season-control').count(), 0));
+  async function equalControls() {
+    const metrics = await page.locator('.control-group').evaluateAll(nodes => nodes.map(node => ({
+      height: node.getBoundingClientRect().height,
+      font: getComputedStyle(node.querySelector('output')).fontSize,
+      sliderY: node.querySelector('input').getBoundingClientRect().top - node.getBoundingClientRect().top,
+    })));
+    assert.equal(metrics.length, 2);
+    assert.equal(metrics[0].height, metrics[1].height);
+    assert.equal(metrics[0].font, metrics[1].font);
+    assert.equal(metrics[0].sliderY, metrics[1].sliderY);
+    const overlap = await page.locator('.temperature-control').evaluate(node => {
+      const value = node.querySelector('.setpoint-value'), stepper = node.querySelector('.setpoint-stepper');
+      const last = value.lastElementChild.getBoundingClientRect();
+      return last.right > stepper.getBoundingClientRect().left;
+    });
+    assert.equal(overlap, false, 'value and +/- buttons must not overlap');
+  }
+  await check('equal control height, font and track position', equalControls);
+  await check('local temperature preview sends no commands', async () => {
+    await page.getByRole('button', { name: 'Aumenta temperatura obiettivo di mezzo grado', exact: true }).click();
+    assert.equal(await page.locator('.temperature-control output').textContent(), '21.5');
+    assert.deepEqual(writes, []);
+  });
+  await visit('#system');
+  await capture('system-desktop');
+  await check('curated heat pump readings include assigned, renamed entities', async () => {
+    const text = await page.locator('#app').innerText();
+    assert.match(text, /Consumo elettrico oggi/); assert.match(text, /8[,.]4/);
+    assert.match(text, /Mandata/); assert.match(text, /34[,.]8/);
+    assert.doesNotMatch(text, /signal_strength|compressor_hours_loadclass1/);
+  });
+  for (const width of [320, 375, 390, 520, 600, 760, 768, 1024, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const hash of ['', '#room/cucina', '#system', '#settings']) {
+      await visit(hash);
+      await check(`no overflow ${width}px ${hash || 'overview'}`, async () => {
+        const size = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }));
+        assert.ok(size.scroll <= size.client, JSON.stringify(size));
+      });
+      if (hash === '#room/cucina') await check(`equal controls ${width}px`, equalControls);
+      if (width === 390 && hash !== '#settings') await capture(hash === '#system' ? 'system-mobile' : hash ? 'room-mobile' : 'overview-mobile');
+    }
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await check('winter disables humidity; summer enables only a local preview', async () => {
+    await visit('#room/cucina');
+    assert.equal(await page.locator('.humidity-control input').isDisabled(), true);
+    payload['2701'].season = 'summer';
+    await visit('#room/cucina');
+    assert.equal(await page.locator('.humidity-control input').isDisabled(), false);
+    await page.getByRole('button', { name: 'Aumenta umidità obiettivo', exact: true }).click();
+    assert.equal(await page.locator('.humidity-control output').textContent(), '51');
+  });
+  await check('native temperature slider responds to touch tap and drag', async () => {
+    const slider = page.locator('.temperature-control input');
+    await slider.scrollIntoViewIfNeeded();
+    const rect = await slider.boundingBox();
+    await page.touchscreen.tap(rect.x + rect.width * .6, rect.y + rect.height / 2);
+    const first = Number(await slider.inputValue());
+    assert.ok(first > 15 && first < 25);
+    const cdp = await page.context().newCDPSession(page);
+    const y = rect.y + rect.height / 2;
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: rect.x + rect.width * .6, y }] });
+    for (const fraction of [.65, .7, .75, .8]) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: rect.x + rect.width * fraction, y }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    assert.ok(Number(await slider.inputValue()) > first);
+    await cdp.detach();
+  });
+  await check('zero, unavailable, native units and metadata matching', async () => {
+    payload.vicare = [entity('power_consumption_today', 0, 'Wh'), entity('supply_temperature', 'unavailable', '°C'),
+      entity('return_temperature', 88, '°F'), entity('other', 999, 'kWh', { entity_id: 'sensor.fake_power_consumption_today' })];
+    await visit('#system');
+    const values = await page.locator('.system-value').allTextContents();
+    assert.deepEqual(values, ['0Wh', '—', '88°F']);
+    assert.match(await page.locator('.system-water').innerText(), /Non disponibile/);
+    payload.vicare = [entity('supply_temperature', 35, '°C', { translation_key: null })];
+    await visit('#system');
+    assert.match(await page.locator('.system-water').innerText(), /35/);
+    payload.vicare = [];
+    await visit('#system');
+    assert.match(await page.locator('.empty').innerText(), /Nessuna lettura/);
+  });
+  await check('additional areas stay visible before the final direct circuit', async () => {
+    payload = structuredClone(fixture);
+    payload.vicare.push(entity('unknown', 0, '', { area: 'Studio' }));
+    await visit('');
+    const names = await page.locator('.room-title').allTextContents();
+    assert.ok(names.includes('Studio')); assert.equal(names.at(-1), 'Circuito diretto');
+    payload['2701'].zones = []; payload.vicare = [];
+    await visit(''); assert.equal(await page.locator('.room-card').count(), 0);
+  });
+  for (const language of ['it', 'en']) for (const theme of ['light', 'dark']) for (const palette of ['forest', 'ocean', 'violet', 'custom']) {
+    payload = structuredClone(fixture);
+    payload.vicare[0].attributes.friendly_name = 'PompaDiCaloreConNomeMoltoLungo'.repeat(8);
+    payload.vicare.push(entity('power_consumption_today', 1.5, 'kWh', { entity_id: 'sensor.second_heat_pump' }));
+    await page.evaluate(({ language, theme, palette }) => {
+      for (const [key, value] of Object.entries({ language, theme, palette })) localStorage.setItem(`heating-dashboard-${key}`, value);
+    }, { language, theme, palette });
+    for (const hash of ['#room/cucina', '#system']) {
+      await visit(hash);
+      await check(`${language} ${theme} ${palette} ${hash} with long names`, async () => {
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+        if (hash.startsWith('#room')) await equalControls();
+      });
+    }
+  }
+  await check('no browser errors or device writes', () => { assert.deepEqual(errors, []); assert.deepEqual(writes, []); });
+  await browser.close(); await new Promise(resolve => server.close(resolve));
+  console.log(`${failures.length} failed checks`); if (failures.length) process.exitCode = 1;
+}
+main().catch(error => { console.error(error); process.exit(1); });

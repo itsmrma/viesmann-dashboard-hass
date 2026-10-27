@@ -74,6 +74,13 @@ def fetch_vicare_entities(
             for entry in registry_result.get("result", [])
             if entry.get("entity_id") in entity_ids
         }
+        entity_metadata = {
+            entry["entity_id"]: {
+                "translation_key": entry.get("translation_key"),
+            }
+            for entry in registry_result.get("result", [])
+            if entry.get("entity_id") in entity_ids
+        }
     finally:
         connection.close()
 
@@ -105,6 +112,7 @@ def fetch_vicare_entities(
                 if entity.get("attributes", {}).get(key) is not None
             },
             "area": entity_area.get(entity["entity_id"]),
+            **entity_metadata[entity["entity_id"]],
         }
         for entity in states
         if entity.get("entity_id") in entity_ids

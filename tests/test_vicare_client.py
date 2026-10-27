@@ -17,7 +17,7 @@ class FakeWebSocket:
                 "type": "result",
                 "success": True,
                 "result": [
-                    {"entity_id": "sensor.vicare_flow", "platform": "vicare", "disabled_by": None, "area_id": "living"},
+                    {"entity_id": "sensor.vicare_flow", "platform": "vicare", "disabled_by": None, "area_id": "living", "translation_key": "supply_temperature", "device_id": "heat-pump"},
                     {"entity_id": "climate.vicare_heating", "platform": "vicare", "disabled_by": None, "area_id": "living"},
                     {"entity_id": "button.vicare_charge", "platform": "vicare", "disabled_by": None},
                     {"entity_id": "sensor.other_flow", "platform": "other", "disabled_by": None},
@@ -87,6 +87,8 @@ class VicareClientTests(unittest.TestCase):
         self.assertEqual([entity["entity_id"] for entity in result], ["sensor.vicare_flow", "climate.vicare_heating"])
         self.assertEqual(result[0]["attributes"], {"friendly_name": "Flow", "unit_of_measurement": "°C"})
         self.assertEqual(result[0]["area"], "Soggiorno")
+        self.assertEqual(result[0]["translation_key"], "supply_temperature")
+        self.assertIsNone(result[1]["translation_key"])
         self.assertEqual(result[1]["attributes"], {"friendly_name": "Heating", "current_temperature": 20.5})
 
 
