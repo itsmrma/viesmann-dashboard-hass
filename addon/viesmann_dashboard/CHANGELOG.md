@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.7
+
+- Rinominata l'app e la voce della barra laterale di Home Assistant in «Viessmann Dashboard».
+- La voce laterale usa l'icona a termometro configurata dalla versione 0.1.6.
+
 ## 0.1.6
 
 - Aggiunta un'icona a termometro per l'app installata e per la barra laterale di Home Assistant.
