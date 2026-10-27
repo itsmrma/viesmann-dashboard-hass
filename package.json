@@ -1,0 +1,10 @@
+{
+  "name": "viessmann-dashboard-ui-checks",
+  "private": true,
+  "scripts": {
+    "test:ui": "node tests/browser/dashboard.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}

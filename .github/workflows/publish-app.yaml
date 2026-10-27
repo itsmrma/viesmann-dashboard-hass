@@ -27,6 +27,16 @@ jobs:
           python-version: "3.12"
       - name: Run TDD suite
         run: python -m unittest discover -s tests -p 'test_*.py'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install browser checks
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Check dashboard behavior and responsive layout
+        run: npm run test:ui
       - name: Validate app metadata
         run: |
           ruby -e 'require "yaml"; ARGV.each { |path| YAML.load_file(path); puts "valid YAML: #{path}" }' \
