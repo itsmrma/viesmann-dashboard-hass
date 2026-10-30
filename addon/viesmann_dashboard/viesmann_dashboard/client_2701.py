@@ -22,6 +22,15 @@ def _text(parent: ET.Element, name: str) -> str | None:
     return node.text.strip()
 
 
+def _activity(zone: ET.Element) -> bool | None:
+    classes = set((_text(zone, "term_on_classname") or "").lower().split())
+    if classes & {"red", "blue"}:
+        return True
+    if classes & {"gray", "grey"}:
+        return False
+    return None
+
+
 def parse_controller_xml(payload: str) -> dict[str, Any]:
     """Parse an index_refresh.php XML response into display-safe readings."""
     root = ET.fromstring(payload)
@@ -36,14 +45,13 @@ def parse_controller_xml(payload: str) -> dict[str, Any]:
             zone_id = int(identifier) if identifier is not None else None
         except ValueError:
             zone_id = None
-        activity_class = _text(zone, "term_on_classname")
         zones.append({
             "id": zone_id,
             "name": _text(zone, "name"),
             "room_temperature": _number(_text(zone, "temp_op")),
             "target_temperature": _number(_text(zone, "set_temp")),
             "humidity": _number(_text(zone, "hum")),
-            "active": activity_class in {"red", "blue"},
+            "active": _activity(zone),
         })
     return {"season": season, "zones": zones}
 
@@ -85,7 +93,11 @@ class ControllerClient:
             zone = details.find(".//zone")
             if zone is None:
                 continue
-            activity_class = _text(zone, "term_on_classname")
+            # The overview owns the seasonal activity indicator. Some firmware
+            # omits it from zone_refresh.php, which supplies detailed readings.
+            active = _activity(summary)
+            if active is None:
+                active = _activity(zone)
             try:
                 zone_id = int(identifier)
             except ValueError:
@@ -96,6 +108,6 @@ class ControllerClient:
                 "room_temperature": _number(_text(zone, "temp_op")),
                 "target_temperature": _number(_text(zone, "set_temp")),
                 "humidity": _number(_text(zone, "hum")),
-                "active": activity_class in {"red", "blue"},
+                "active": active,
             })
         return {"season": season, "zones": zones}

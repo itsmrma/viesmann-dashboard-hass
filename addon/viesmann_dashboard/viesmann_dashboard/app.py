@@ -119,16 +119,40 @@ def fetch_vicare_entities(
     ]
 
 
-def poll_forever(options: dict, state: DashboardState, stop: threading.Event) -> None:
-    controller = ControllerClient(options["controller_url"], options["session_cookie"])
+class ControllerPoller:
+    """Share one read-only controller poll between scheduled and manual refreshes."""
+
+    def __init__(self, options: dict, state: DashboardState):
+        self.options = options
+        self.state = state
+        self.controller = ControllerClient(options["controller_url"], options["session_cookie"])
+        self._lock = threading.Lock()
+
+    def refresh(self) -> bool:
+        if not self._lock.acquire(blocking=False):
+            return False
+        try:
+            if not self.options["controller_url"] or not self.options["session_cookie"]:
+                raise RuntimeError("Missing controller options")
+            self.state.update_2701(self.controller.fetch_snapshot())
+            return True
+        except Exception:
+            message = "2701 poll failed; check URL, PHPSESSID, and controller availability"
+            self.state.fail("2701", message)
+            raise RuntimeError(message) from None
+        finally:
+            self._lock.release()
+
+
+def poll_forever(options: dict, state: DashboardState, stop: threading.Event,
+                 controller: ControllerPoller | None = None) -> None:
+    controller = controller or ControllerPoller(options, state)
     token = os.environ.get("SUPERVISOR_TOKEN")
     while not stop.is_set():
         try:
-            if not options["controller_url"] or not options["session_cookie"]:
-                raise RuntimeError("Configure the 2701 URL and PHP session cookie in add-on options")
-            state.update_2701(controller.fetch_snapshot())
-        except Exception:
-            state.fail("2701", "2701 poll failed; check URL, PHPSESSID, and controller availability")
+            controller.refresh()
+        except RuntimeError:
+            pass
         try:
             entities = fetch_vicare_entities(token)
             if not entities:
@@ -145,8 +169,10 @@ def main() -> None:
     options = read_options()
     state = DashboardState(options["poll_seconds"])
     stop = threading.Event()
-    threading.Thread(target=poll_forever, args=(options, state, stop), daemon=True).start()
-    server = ThreadingHTTPServer(("0.0.0.0", 8099), make_handler(state, enforce_ingress_peer=True))
+    controller = ControllerPoller(options, state)
+    threading.Thread(target=poll_forever, args=(options, state, stop, controller), daemon=True).start()
+    server = ThreadingHTTPServer(("0.0.0.0", 8099), make_handler(
+        state, enforce_ingress_peer=True, refresh_2701=controller.refresh))
     try:
         server.serve_forever()
     finally:
