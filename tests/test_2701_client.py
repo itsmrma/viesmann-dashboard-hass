@@ -4,6 +4,15 @@ from addon.viesmann_dashboard.viesmann_dashboard.client_2701 import parse_contro
 
 
 class ControllerXmlTests(unittest.TestCase):
+    def test_activity_handles_css_tokens_and_missing_indicators(self):
+        for indicator, expected in [("red", True), ("blue", True), ("Gray", False),
+                                    ("grey", False), ("term_on RED", True),
+                                    ("", None), ("unknown", None)]:
+            with self.subTest(indicator=indicator):
+                result = parse_controller_xml(
+                    f"<response><zone><idx>0</idx><term_on_classname>{indicator}</term_on_classname></zone></response>")
+                self.assertIs(result["zones"][0]["active"], expected)
+
     def test_parses_system_and_zone_readings(self):
         payload = """<?xml version="1.0"?>
         <response>

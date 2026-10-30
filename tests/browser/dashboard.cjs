@@ -30,7 +30,24 @@ const fixture = {
     entity('signal_strength', -62, 'dBm'), entity('compressor_hours_loadclass1', 4567, 'h'),
   ],
 };
+fixture.history = {
+  '2701': Array.from({ length: 8 }, (_, index) => ({
+    at: new Date(Date.parse(date) - (7 - index) * 120000).toISOString(),
+    readings: fixture['2701'].zones.map(zone => ({ ...zone,
+      room_temperature: zone.room_temperature - (7 - index) * .08,
+      humidity: zone.humidity == null ? null : zone.humidity + (7 - index),
+      active: index % 3 === 0 ? false : zone.active,
+    })),
+  })),
+  vicare: Array.from({ length: 8 }, (_, index) => ({
+    at: new Date(Date.parse(date) - (7 - index) * 120000).toISOString(),
+    readings: fixture.vicare.map(entity => ({ id: entity.entity_id,
+      value: Number(entity.state) * (1 - (7 - index) * .025), unit: entity.attributes.unit_of_measurement })),
+  })),
+};
 let payload = structuredClone(fixture);
+let refreshStatus = 200, refreshDelay = 0;
+const refreshRequests = [];
 const failures = [];
 function check(name, run) {
   return Promise.resolve().then(run).then(() => console.log(`PASS ${name}`), error => {
@@ -39,7 +56,13 @@ function check(name, run) {
 }
 async function main() {
   const server = http.createServer((req, res) => {
-    if (req.url.endsWith('/api/status')) {
+    if (req.url.endsWith('/api/refresh/2701') && req.method === 'POST') {
+      refreshRequests.push({ url: req.url, header: req.headers['x-requested-with'] });
+      setTimeout(() => {
+        res.writeHead(refreshStatus, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ snapshot: payload }));
+      }, refreshDelay);
+    } else if (req.url.endsWith('/api/status')) {
       res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(payload));
     } else {
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -51,7 +74,7 @@ async function main() {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, hasTouch: true, timezoneId: 'Europe/Rome' });
   const errors = [], writes = [];
   page.on('pageerror', error => errors.push(error.message));
-  page.on('request', request => { if (!['GET', 'HEAD'].includes(request.method())) writes.push(request.url()); });
+  page.on('request', request => { if (!['GET', 'HEAD'].includes(request.method()) && !request.url().endsWith('/api/refresh/2701')) writes.push(request.url()); });
   const base = `http://127.0.0.1:${server.address().port}/`;
   await page.goto(base);
   await page.locator('.room-card').first().waitFor();
@@ -283,6 +306,66 @@ async function main() {
       });
     }
   }
+  await page.evaluate(() => { localStorage.setItem('heating-dashboard-language', 'en');localStorage.setItem('heating-dashboard-palette', 'forest'); });
+  payload = structuredClone(fixture);
+  await check('charts show real timestamps, native units and accessible values', async () => {
+    await visit('');
+    assert.equal(await page.getByRole('img', { name: 'Active zones over time · zones', exact: true }).count(), 1);
+    await visit('#room/cucina');
+    assert.equal(await page.getByRole('img', { name: 'Temperatures over time · °C', exact: true }).count(), 1);
+    assert.equal(await page.getByRole('img', { name: 'Humidity over time · %', exact: true }).count(), 1);
+    await page.locator('.trend-panel').first().locator('summary').click();
+    assert.equal(await page.locator('.trend-panel').first().locator('tbody tr').count(), 8);
+    assert.match(await page.locator('.trend-panel').first().innerText(), /12:46/);
+    await visit('#system');
+    assert.ok(await page.locator('.trend-svg').count() >= 3);
+    assert.match(await page.locator('.trend-panel').allTextContents().then(text => text.join(' ')), /kWh|°C/);
+    assert.equal(await page.locator('path[d*="NaN"]').count(), 0);
+    payload.history['2701'][3].readings[1].room_temperature = null;
+    await visit('#room/cucina');
+    const measuredPath = await page.locator('.trend-svg').first().locator('path').first().getAttribute('d');
+    assert.equal((measuredPath.match(/M/g) || []).length, 2, 'missing readings must break the curve');
+    payload = structuredClone(fixture);
+  });
+  await check('missing and single samples show an honest chart empty state', async () => {
+    payload.history = { '2701': [fixture.history['2701'][0]], vicare: [] };
+    await visit('#room/cucina');
+    assert.equal(await page.locator('.trend-svg').count(), 0);
+    assert.match(await page.locator('.room-trends').innerText(), /Waiting for at least two valid readings/);
+    payload['2701'].zones[1].active = null;
+    await visit('#room/cucina');
+    assert.equal(await page.locator('.heading .status-chip').textContent(), 'helpStatus unavailable');
+    await visit('');
+    assert.match(await page.locator('.summary').innerText(), /4 confirmed active zones/);
+    assert.match(await page.locator('.summary').innerText(), /7 zones detected/);
+    payload = structuredClone(fixture);
+  });
+  await check('manual refresh is single-flight, survives polling, reports errors and retries under ingress', async () => {
+    // Serve exactly as an Ingress page with a relative API base.
+    await page.route('**/api/hassio_ingress/test/', async route => {
+      await route.fulfill({ contentType: 'text/html', body: fs.readFileSync(htmlFile, 'utf8').replace('</head>', '<base href="/api/hassio_ingress/test/"></head>') });
+    });
+    await page.goto(`${base}api/hassio_ingress/test/`);
+    await page.locator('.refresh-button').waitFor();
+    const originalButton = await page.locator('.refresh-button').elementHandle();
+    await page.evaluate(() => render(latest));
+    assert.equal(await originalButton.evaluate(node => node.isConnected), true, 'polling must retain the live status region and button');
+    refreshDelay = 150;
+    const button = page.getByRole('button', { name: 'Refresh 2701', exact: true });
+    await button.click();
+    assert.equal(await page.getByRole('button', { name: 'Refreshing…' }).isDisabled(), true);
+    await page.evaluate(() => render(latest));
+    assert.equal(await page.getByRole('button', { name: 'Refreshing…' }).isDisabled(), true);
+    await page.getByRole('status').filter({ hasText: '2701 readings updated.' }).waitFor();
+    assert.equal(refreshRequests.length, 1);
+    for (const [status, message] of [[409, 'Refresh already in progress'], [502, 'Refresh failed'], [200, '2701 readings updated.']]) {
+      refreshStatus = status;await button.click();
+      await page.getByRole('status').filter({ hasText: message }).waitFor();
+      assert.equal(await page.locator('.room-card').count(), 7);
+    }
+    assert.ok(refreshRequests.every(request => request.url === '/api/hassio_ingress/test/api/refresh/2701' && request.header === 'Dashboard'));
+    await page.unroute('**/api/hassio_ingress/test/');
+  });
   await check('no browser errors or device writes', () => { assert.deepEqual(errors, []); assert.deepEqual(writes, []); });
   await browser.close(); await new Promise(resolve => server.close(resolve));
   console.log(`${failures.length} failed checks`); if (failures.length) process.exitCode = 1;

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.8
+
+- Fixed active-zone detection by reading the seasonal indicator from the controller overview, with a detail-response fallback. Missing indicators now show an unavailable status instead of an inactive zone.
+- Added a manual 2701 refresh button with progress, error feedback, and protection against overlapping polls. Refreshes only read controller data.
+- Added charts for active zones, room temperatures and humidity, and available ViCare readings, with native units and accessible recent-reading tables.
+- History retains up to 24 hours and 1,440 samples per source in memory, starts with actual collected readings, and resets when the app restarts.
+
 ## 0.1.7
 
 - Renamed the app and its Home Assistant sidebar entry to "Viessmann Dashboard".

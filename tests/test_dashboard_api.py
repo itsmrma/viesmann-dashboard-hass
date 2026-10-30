@@ -76,8 +76,66 @@ class DashboardApiTests(unittest.TestCase):
         self.assertIn("#room/${encodeURIComponent(room.key)}", html)
         self.assertIn("Automatico", html)
         self.assertIn("prefers-color-scheme: dark", html)
-        self.assertNotIn("<button", html)
+        self.assertIn("api/refresh/2701", html)
         self.assertNotIn("<form", html)
+
+    def test_manual_refresh_under_ingress_updates_only_controller_and_retains_errors(self):
+        from urllib.error import HTTPError
+        from urllib.request import Request
+        state = DashboardState(120)
+        calls = []
+
+        def refresh():
+            calls.append(True)
+            if len(calls) == 2:
+                return False
+            if len(calls) == 3:
+                state.fail("2701", "Controller unavailable")
+                raise RuntimeError("private details")
+            state.update_2701({"season": "summer", "zones": []})
+            return True
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(state, refresh_2701=refresh))
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(thread.join)
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        url = f"http://127.0.0.1:{server.server_port}/api/hassio_ingress/test/api/refresh/2701"
+        with self.assertRaises(HTTPError) as error:
+            urlopen(Request(url, method="POST"))
+        self.assertEqual(error.exception.code, 403)
+        error.exception.close()
+        self.assertEqual(calls, [])
+        request = Request(url, method="POST", headers={"X-Requested-With": "Dashboard"})
+        with urlopen(request) as response:
+            snapshot = json.loads(response.read())["snapshot"]
+        self.assertEqual(snapshot["2701"]["season"], "summer")
+        self.assertIsNone(snapshot["vicare"])
+        for status in [409, 502]:
+            with self.assertRaises(HTTPError) as error:
+                urlopen(request)
+            self.assertEqual(error.exception.code, status)
+            self.assertNotIn("private details", error.exception.read().decode())
+            error.exception.close()
+        self.assertEqual(state.snapshot()["2701"]["season"], "summer")
+        self.assertEqual(len(state.snapshot()["history"]["2701"]), 1)
+
+    def test_refresh_enforces_ingress_peer(self):
+        server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(
+            DashboardState(120), enforce_ingress_peer=True, refresh_2701=lambda: self.fail("Unexpected poll")))
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(thread.join)
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        from urllib.error import HTTPError
+        from urllib.request import Request
+        with self.assertRaises(HTTPError) as error:
+            urlopen(Request(f"http://127.0.0.1:{server.server_port}/api/refresh/2701", method="POST",
+                            headers={"X-Requested-With": "Dashboard"}))
+        self.assertEqual(error.exception.code, 403)
+        error.exception.close()
 
     def test_read_only_api_rejects_mutating_methods(self):
         state = DashboardState(poll_seconds=120)
@@ -95,6 +153,7 @@ class DashboardApiTests(unittest.TestCase):
         with self.assertRaises(HTTPError) as error:
             urlopen(request)
         self.assertEqual(error.exception.code, 501)
+        error.exception.close()
 
 
 if __name__ == "__main__":

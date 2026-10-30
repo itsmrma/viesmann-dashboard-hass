@@ -28,9 +28,17 @@ In **Impostazioni → Colori della pagina → Personalizzata**, select a backgro
 
 ## Freshness and errors
 
+Use **Aggiorna 2701 / Refresh 2701** in the page header to read the controller immediately without waiting for the configured interval. It refreshes only 2701 data, using the same GET endpoints as scheduled polling; it does not request a ViCare cloud update or send a device command. The button reports progress and failures, and overlapping manual/scheduled controller polls are rejected. Last successful readings remain visible after a refresh failure. Automatic polling continues at the configured interval.
+
 Each source reports its own last update. 2701 freshness uses the last successful controller poll. ViCare freshness uses the oldest discovered entity `last_updated` value, so a stale reading is not hidden by another entity that updated more recently. A source becomes stale after two configured polling intervals. The last readings remain visible after a failure; before the first successful read, that source is unavailable.
 
-Humidity is omitted when the controller returns an unsupported value. Zone activity uses the seasonal indicator: red in winter or blue in summer means active; gray means inactive. The dashboard does not infer mismatches between readings with different meanings.
+Humidity is omitted when the controller returns an unsupported value. Zone activity uses `term_on_classname` from the index response, with the zone detail as a fallback: red in winter or blue in summer means active; gray/grey means inactive. Missing or unrecognized indicators show an unavailable status, and the overview distinguishes confirmed active zones from unknown states. The dashboard does not infer mismatches between readings with different meanings.
+
+## Charts and history
+
+The overview charts the number of active zones. Room views chart measured and target temperatures, plus humidity when available. System charts show the selected ViCare readings, grouped by category and native unit; readings with different units are never plotted on the same scale. Daily consumption curves display the sensor's reported cumulative reading rather than an estimated consumption rate. Each chart includes a table of its latest 20 samples.
+
+History is collected by the add-on, independently of open browser tabs, after successful scheduled or manual reads. It retains the last 24 hours with a maximum of 1,440 samples per source, in memory only. Restarting the app clears history. Charts require two valid samples at different timestamps; they show a waiting message before then. Missing measurements appear as gaps rather than zero. ViCare samples represent the states read from Home Assistant, not a forced cloud refresh or imported Recorder history. Historical zone activity is unavailable if any zone's indicator is unknown.
 
 ## Development
 
@@ -68,3 +76,5 @@ Include the issue #22 scenarios in that same pass: confirm the requested room or
 Include the issue #24 scenarios in that same pass: confirm the 0.1.6 release notes and thermometer app/sidebar icons in Home Assistant; direct room links and the back link under Ingress; stable overview/system/settings headings; all three custom colors, visual sliders, HEX entry, Apply/Cancel/Escape and theme-specific persistence; the iOS keyboard and short viewport; brief button feedback and reduced-motion behavior. These Supervisor and physical-device checks remain pending until the release is installed.
 
 For 0.1.7, also confirm **Viessmann Dashboard** appears in both the app list and sidebar, with the thermometer sidebar icon.
+
+Include the issue #30 scenarios in that same pass for 0.1.8: compare active/inactive winter and summer zones against the real 2701 interface; verify unknown indicators are not labelled inactive; trigger the header refresh under Ingress and confirm updated readings, progress, error/retry feedback, and no overlapping controller requests; check chart values, units, empty states, and recent-reading tables on PC/Mac/iOS. Confirm history fills while the browser is closed and resets after an app restart. The manual refresh must only read the 2701 and must not force a ViCare cloud update.
