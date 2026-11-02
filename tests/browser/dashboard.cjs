@@ -88,7 +88,7 @@ async function main() {
   let visitNumber = 0;
   async function visit(hash) {
     await page.goto(`${base}?case=${++visitNumber}${hash}`);
-    await page.locator('nav').waitFor(); await page.evaluate(() => document.fonts.ready);
+    await page.locator(hash.startsWith('#room') ? '.back-link' : 'nav').waitFor(); await page.evaluate(() => document.fonts.ready);
   }
   async function checkColorSliderAlignment() {
     for (const slider of await page.locator('.color-channel input').all()) {
