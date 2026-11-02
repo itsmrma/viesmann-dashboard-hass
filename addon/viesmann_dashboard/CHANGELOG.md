@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.9
+
+- Improved active-zone detection by reading alternative controller indicator elements, so zone status no longer shows as unavailable when the controller reports it differently.
+- Placed the room temperature and humidity charts side by side when there is enough space.
+- Moved the 2701 refresh button into the 2701 last-update card.
+- Moved the Back to overview button next to the room name and removed the Overview, System, and Settings tabs from room pages.
+
 ## 0.1.8
 
 - Fixed active-zone detection by reading the seasonal indicator from the controller overview, with a detail-response fallback. Missing indicators now show an unavailable status instead of an inactive zone.

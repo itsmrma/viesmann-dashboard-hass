@@ -22,14 +22,34 @@ def _text(parent: ET.Element, name: str) -> str | None:
     return node.text.strip()
 
 
+_ACTIVE_TOKENS = {"red", "blue", "on", "active", "heating", "cooling"}
+_INACTIVE_TOKENS = {"gray", "grey", "off", "inactive", "idle"}
+
+
 def _activity(zone: ET.Element) -> bool | None:
-    classes = set((_text(zone, "term_on_classname") or "").lower().split())
-    if classes & {"red", "blue"}:
+    """Return zone activity from any controller indicator, or None if unknown.
+
+    Firmware variants expose the indicator as ``term_on_classname`` or under a
+    similarly named element, so every ``*classname`` and ``term_on*`` child is
+    inspected. Active wins over inactive when several indicators disagree.
+    """
+    tokens: set[str] = set()
+    numeric: list[float] = []
+    for child in zone:
+        tag = child.tag.lower()
+        if not (tag.endswith("classname") or tag.startswith("term_on")):
+            continue
+        value = (child.text or "").strip().lower()
+        tokens.update(value.replace("-", " ").replace("_", " ").split())
+        if tag.startswith("term_on") and not tag.endswith("classname"):
+            parsed = _number(value)
+            if parsed is not None:
+                numeric.append(parsed)
+    if tokens & _ACTIVE_TOKENS or any(value > 0 for value in numeric):
         return True
-    if classes & {"gray", "grey"}:
+    if tokens & _INACTIVE_TOKENS or numeric:
         return False
     return None
-
 
 def parse_controller_xml(payload: str) -> dict[str, Any]:
     """Parse an index_refresh.php XML response into display-safe readings."""

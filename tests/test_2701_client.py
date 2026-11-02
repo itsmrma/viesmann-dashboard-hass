@@ -13,6 +13,16 @@ class ControllerXmlTests(unittest.TestCase):
                     f"<response><zone><idx>0</idx><term_on_classname>{indicator}</term_on_classname></zone></response>")
                 self.assertIs(result["zones"][0]["active"], expected)
 
+    def test_activity_reads_alternative_indicator_elements(self):
+        for tag, value, expected in [("term_on_classname", "term_on red", True),
+                                     ("zone_classname", "blue", True),
+                                     ("term_on", "1", True), ("term_on", "0", False),
+                                     ("term_on_classname", "off", False)]:
+            with self.subTest(tag=tag, value=value):
+                result = parse_controller_xml(
+                    f"<response><zone><idx>0</idx><{tag}>{value}</{tag}></zone></response>")
+                self.assertIs(result["zones"][0]["active"], expected)
+
     def test_parses_system_and_zone_readings(self):
         payload = """<?xml version="1.0"?>
         <response>
